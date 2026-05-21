@@ -166,3 +166,12 @@ model PaymentSms {
   matchedOrderId String?
   receivedAt     DateTime        @default(now())
 }
+
+// A person who can log in to the operator dashboard.
+model OperatorUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String?
+  createdAt    DateTime @default(now())
+}

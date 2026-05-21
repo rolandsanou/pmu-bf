@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { isOperatorAuthed } from "@/lib/auth";
+import { getOperator } from "@/lib/auth";
 import { logoutAction, verifyPayment } from "@/lib/actions";
 import {
   ORDER_STATUS_COLOR,
@@ -27,7 +27,8 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  if (!(await isOperatorAuthed())) redirect("/operateur/login");
+  const operator = await getOperator();
+  if (!operator) redirect("/operateur/login");
 
   const { status } = await searchParams;
   const active = status && status !== "ALL" ? (status as OrderStatus) : null;
@@ -49,13 +50,16 @@ export default async function DashboardPage({
       <header className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <span className="font-bold text-slate-900">
-            🏇 {businessName} — Gérante
+            🏇 {businessName}
           </span>
-          <form action={logoutAction}>
-            <button className="text-sm text-slate-500 hover:text-slate-800">
-              Déconnexion
-            </button>
-          </form>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-500 capitalize">{operator}</span>
+            <form action={logoutAction}>
+              <button className="text-sm text-slate-500 hover:text-slate-800">
+                Déconnexion
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

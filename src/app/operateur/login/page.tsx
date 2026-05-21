@@ -23,11 +23,18 @@ export default async function LoginPage({
         </p>
 
         <input
+          type="text"
+          name="username"
+          placeholder="Nom d'utilisateur"
+          autoCapitalize="none"
+          autoFocus
+          className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2"
+        />
+        <input
           type="password"
           name="password"
           placeholder="Mot de passe"
-          autoFocus
-          className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2"
+          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
         />
 
         {error && (

@@ -114,8 +114,9 @@ export async function createOrder(
 }
 
 export async function loginAction(formData: FormData): Promise<void> {
+  const username = String(formData.get("username") || "");
   const password = String(formData.get("password") || "");
-  const ok = await loginOperator(password);
+  const ok = await loginOperator(username, password);
   redirect(ok ? "/operateur" : "/operateur/login?error=1");
 }
 
