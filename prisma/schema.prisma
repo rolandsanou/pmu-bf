@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A horse race the operator opens for betting on a given day.
+model Course {
+  id             String           @id @default(cuid())
+  hippodrome     String // e.g. "Paris-Vincennes"
+  number         Int // race number (e.g. 4 = 4ème course)
+  prizeName      String? // e.g. "Prix Sirrah"
+  discipline     Discipline       @default(ATTELE)
+  distanceMeters Int              @default(2000)
+  prizeMoney     Int? // total prize money, in FCFA
+  nocturne       Boolean          @default(false)
+  date           DateTime         @db.Date
+  startTime      DateTime
+  cutoffTime     DateTime // betting closes at this time
+  runnerCount    Int              @default(16) // number of horses (1..runnerCount)
+  status         CourseStatus     @default(OPEN)
+  runners        Runner[]
+  offers         CourseBetOffer[]
+  bets           Bet[]
+  createdAt      DateTime         @default(now())
+
+  @@index([date])
+}
+
+enum CourseStatus {
+  OPEN
+  CLOSED
+  SETTLED
+}
+
+enum Discipline {
+  ATTELE
+  MONTE
+  PLAT
+}
+
+// A horse running in a course (from the PMU'B journal).
+model Runner {
+  id         String   @id @default(cuid())
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   String
+  number     Int // program number
+  name       String
+  driver     String?
+  trainer    String?
+  owner      String?
+  sexAge     String? // e.g. "H.8"
+  chrono     String? // e.g. "1.11.40"
+  recentForm String? // last results, e.g. "4.A.9.6.5"
+  gains      Int? // career earnings
+  odds       String? // probable odds, e.g. "24/1"
+  createdAt  DateTime @default(now())
+
+  @@unique([courseId, number])
+}
+
+// A category of bet (Simple, Couplé, Tiercé, Quinté+...).
+model BetType {
+  id             String           @id @default(cuid())
+  name           String           @unique // "Tiercé"
+  code           String           @unique // "TIERCE"
+  horsesToSelect Int // how many horses the customer picks
+  ordered        Boolean          @default(false) // does selection order matter
+  description    String?
+  active         Boolean          @default(true)
+  offers         CourseBetOffer[]
+  createdAt      DateTime         @default(now())
+}
+
+// A bet type offered on a specific course, with the operator's fixed price.
+model CourseBetOffer {
+  id        String   @id @default(cuid())
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+  betType   BetType  @relation(fields: [betTypeId], references: [id])
+  betTypeId String
+  price     Int // fixed price in FCFA, set by the operator
+  active    Boolean  @default(true)
+  bets      Bet[]
+  createdAt DateTime @default(now())
+
+  @@unique([courseId, betTypeId])
+}
+
+// A customer order groups one or more bets paid with a single payment.
+model Order {
+  id             String          @id @default(cuid())
+  code           String          @unique // short human-friendly code
+  customerName   String
+  customerPhone  String
+  total          Int
+  status         OrderStatus     @default(PENDING_PAYMENT)
+  paymentRef     String? // transaction ID typed by the customer
+  paymentPhone   String? // number the customer paid from
+  paymentNetwork PaymentNetwork?
+  paidAt         DateTime?
+  placedAt       DateTime?
+  bets           Bet[]
+  ticketPhotos   TicketPhoto[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status])
+  @@index([customerPhone])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT // payment declared, awaiting verification
+  PAID // payment verified
+  PLACED // bet placed at PMU point, ticket available
+  SETTLED // results known
+  CANCELLED
+}
+
+enum PaymentNetwork {
+  ORANGE
+  MOOV
+}
+
+model Bet {
+  id         String         @id @default(cuid())
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  offer      CourseBetOffer @relation(fields: [offerId], references: [id])
+  offerId    String
+  course     Course         @relation(fields: [courseId], references: [id])
+  courseId   String
+  selections Int[] // chosen horse numbers
+  price      Int
+  result     BetResult      @default(PENDING)
+  payout     Int            @default(0)
+  createdAt  DateTime       @default(now())
+}
+
+enum BetResult {
+  PENDING
+  WON
+  LOST
+}
+
+// Proof-of-placement photo uploaded by the operator.
+model TicketPhoto {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  url       String
+  createdAt DateTime @default(now())
+}
+
+// Raw mobile-money confirmation SMS forwarded for reconciliation (Phase 2).
+model PaymentSms {
+  id             String          @id @default(cuid())
+  raw            String
+  amount         Int?
+  sender         String?
+  txnId          String?
+  network        PaymentNetwork?
+  matchedOrderId String?
+  receivedAt     DateTime        @default(now())
+}

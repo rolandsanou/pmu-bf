@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pmu-bf-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pmu
+      POSTGRES_PASSWORD: pmu
+      POSTGRES_DB: pmu
+    ports:
+      - "5433:5432"
+    volumes:
+      - pmu_db_data:/var/lib/postgresql/data
+
+volumes:
+  pmu_db_data:
