@@ -20,9 +20,11 @@ function SubmitButton({ cta, disabled }: { cta: string; disabled: boolean }) {
 export default function TicketUpload({
   orderId,
   cta,
+  expectedCount,
 }: {
   orderId: string;
   cta: string;
+  expectedCount: number;
 }) {
   const [previews, setPreviews] = useState<string[]>([]);
   const [count, setCount] = useState(0);
@@ -33,9 +35,20 @@ export default function TicketUpload({
     setPreviews(files.map((f) => URL.createObjectURL(f)));
   }
 
+  const matches = count === expectedCount;
+
   return (
     <form action={placeOrderWithPhoto} className="space-y-3">
       <input type="hidden" name="orderId" value={orderId} />
+
+      <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+        Cette commande contient{" "}
+        <strong>
+          {expectedCount} ticket{expectedCount > 1 ? "s" : ""}
+        </strong>
+        . Ajoutez <strong>{expectedCount} photo{expectedCount > 1 ? "s" : ""}</strong>{" "}
+        (une par ticket).
+      </div>
 
       <label className="block cursor-pointer rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-6 text-center transition hover:bg-emerald-100">
         <span className="block text-3xl">📷</span>
@@ -43,7 +56,9 @@ export default function TicketUpload({
           Prendre / choisir les photos du ticket
         </span>
         <span className="mt-0.5 block text-xs text-emerald-700/70">
-          Vous pouvez sélectionner plusieurs photos
+          {expectedCount > 1
+            ? `Sélectionnez les ${expectedCount} photos`
+            : "Sélectionnez la photo"}
         </span>
         <input
           type="file"
@@ -58,8 +73,14 @@ export default function TicketUpload({
 
       {count > 0 && (
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-700">
-            {count} photo{count > 1 ? "s" : ""} sélectionnée{count > 1 ? "s" : ""}
+          <p
+            className={`mb-2 text-sm font-medium ${
+              matches ? "text-emerald-700" : "text-amber-700"
+            }`}
+          >
+            {count} / {expectedCount} photo{expectedCount > 1 ? "s" : ""}{" "}
+            sélectionnée{count > 1 ? "s" : ""}
+            {matches ? " ✓" : ` — il en faut ${expectedCount}`}
           </p>
           <div className="grid grid-cols-3 gap-2">
             {previews.map((src) => (

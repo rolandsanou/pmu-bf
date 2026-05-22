@@ -123,6 +123,14 @@ export default function AidePage() {
           jouer avant.
         </div>
 
+        <a
+          href="/guide-pari-express.pdf"
+          download
+          className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          📄 Télécharger le guide en PDF (avec images)
+        </a>
+
         <ol className="mt-5 space-y-4">
           {STEPS.map((s, i) => (
             <li

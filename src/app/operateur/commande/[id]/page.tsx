@@ -124,11 +124,16 @@ export default async function OperatorOrderPage({
             <TicketUpload
               orderId={order.id}
               cta="Marquer placé + envoyer le ticket"
+              expectedCount={order.bets.length}
             />
           )}
 
           {order.status === "PLACED" && (
-            <TicketUpload orderId={order.id} cta="Envoyer d'autres photos" />
+            <TicketUpload
+              orderId={order.id}
+              cta="Envoyer d'autres photos"
+              expectedCount={order.bets.length}
+            />
           )}
 
           {canCancel && (

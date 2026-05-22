@@ -37,6 +37,9 @@ yarn-error.log*
 # uploaded ticket photos (runtime)
 /public/uploads
 
+# generated guide screenshots (the final PDF in /public is committed)
+/scripts/guide-shots
+
 # vercel
 .vercel
 
