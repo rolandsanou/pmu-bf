@@ -1,10 +1,13 @@
 name: keepalive
 
-# Pings the site so Render's free instance doesn't spin down (which causes the
-# slow "loading" page). Runs every 10 min during active hours (06:00–22:00 UTC).
+# Pings the site so Render's free instance doesn't spin down (slow "loading"
+# page). The 10-min schedule is DISABLED because the GitHub account is currently
+# locked for a billing issue (scheduled Actions can't run). Once GitHub billing
+# is resolved, re-add the schedule below to keep the site warm automatically:
+#
+#   schedule:
+#     - cron: "*/10 6-22 * * *"
 on:
-  schedule:
-    - cron: "*/10 6-22 * * *"
   workflow_dispatch:
 
 jobs:
