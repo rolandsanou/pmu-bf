@@ -159,6 +159,7 @@ export type PlacementData = {
   title: string;
   generatedAt: Date;
   orders: PlacementOrder[];
+  grandTotal?: number; // total sales across all orders
 };
 
 // Operator worksheet: every bettor + their bets, to place manually at the PMU
@@ -227,6 +228,23 @@ export async function generatePlacementSheetPdf(
     y -= 8;
     page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 0.5, color: LIGHT });
     y -= 12;
+  }
+
+  // Grand total
+  if (data.orders.length > 0) {
+    const gt = data.grandTotal ?? data.orders.reduce((s, o) => s + o.total, 0);
+    ensure(40);
+    y -= 6;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 1.5, color: NAVY });
+    y -= 20;
+    page.drawText(S(`TOTAL GENERAL (${data.orders.length} commande(s))`), {
+      x: MARGIN, y, size: 12, font: bold, color: NAVY,
+    });
+    const gtStr = S(formatFCFA(gt));
+    page.drawText(gtStr, {
+      x: width - MARGIN - bold.widthOfTextAtSize(gtStr, 14),
+      y, size: 14, font: bold, color: NAVY,
+    });
   }
 
   return doc.save();

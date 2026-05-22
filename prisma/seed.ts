@@ -49,14 +49,24 @@ async function main() {
     typeIdByCode[bt.code] = rec.id;
   }
 
-  // Bets close at 18:00 UTC (Burkina Faso is UTC, so the hour maps directly).
-  // The race day is the next day whose 18:00 cutoff is still ahead.
+  // Bets close at 18:00 UTC on the next race day (Fri/Sun by default).
+  // Uses the same NEXT_PUBLIC_RACE_DAYS env as the front-end.
+  const RACE_DAYS_RAW = process.env.NEXT_PUBLIC_RACE_DAYS || "5,0";
+  const raceDays = new Set(
+    RACE_DAYS_RAW.split(",").map((s) => Number(s.trim())).filter((n) => n >= 0 && n <= 6)
+  );
+
   const now = new Date();
+  // Check if today is a race day and cutoff hasn't passed yet.
   let cutoffTime = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 18, 0, 0)
   );
-  if (cutoffTime.getTime() <= now.getTime()) {
-    cutoffTime = new Date(cutoffTime.getTime() + 24 * 60 * 60 * 1000);
+  if (!(raceDays.has(now.getUTCDay()) && cutoffTime.getTime() > now.getTime())) {
+    // Advance day-by-day until we hit a race day (max 7 iterations).
+    for (let i = 1; i <= 7; i++) {
+      cutoffTime = new Date(cutoffTime.getTime() + 24 * 60 * 60 * 1000);
+      if (raceDays.has(cutoffTime.getUTCDay())) break;
+    }
   }
   const startTime = cutoffTime; // displayed post time = the 18:00 UTC cutoff
   const day = new Date(

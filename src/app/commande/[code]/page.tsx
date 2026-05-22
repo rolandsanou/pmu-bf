@@ -16,6 +16,7 @@ const STEPS = [
   { key: "PENDING_PAYMENT", label: "Paiement à vérifier" },
   { key: "PAID", label: "Payé" },
   { key: "PLACED", label: "Ticket prêt" },
+  { key: "SETTLED", label: "Résultat" },
 ];
 
 export default async function OrderPage({
@@ -71,6 +72,8 @@ export default async function OrderPage({
   }
 
   const currentStep = STEPS.findIndex((s) => s.key === order.status);
+  const isSettled = order.status === "SETTLED";
+  const totalPayout = order.bets.reduce((sum, b) => sum + b.payout, 0);
 
   return (
     <main className="flex-1 flex flex-col">
@@ -137,39 +140,170 @@ export default async function OrderPage({
           </dl>
         </div>
 
+        {/* Official results card (only when settled) */}
+        {isSettled && (() => {
+          // Collect unique courses with finishers.
+          const settledCourses = new Map<string, {
+            label: string;
+            finishers: number[];
+            runners: { number: number; name: string }[];
+          }>();
+          for (const bet of order.bets) {
+            if (bet.course.finishers.length > 0 && !settledCourses.has(bet.courseId)) {
+              settledCourses.set(bet.courseId, {
+                label: bet.course.prizeName
+                  ? `${bet.course.prizeName} — ${bet.course.hippodrome} C${bet.course.number}`
+                  : `${bet.course.hippodrome} C${bet.course.number}`,
+                finishers: bet.course.finishers,
+                runners: bet.course.runners,
+              });
+            }
+          }
+          const byNum = (runners: { number: number; name: string }[]) =>
+            new Map(runners.map((r) => [r.number, r.name]));
+
+          return [...settledCourses.values()].map((sc, i) => {
+            const nameMap = byNum(sc.runners);
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-violet-200 bg-violet-50 p-4"
+              >
+                <h2 className="font-semibold text-violet-900">
+                  Arrivée officielle
+                </h2>
+                <p className="text-xs text-violet-600 mb-2">{sc.label}</p>
+                <ol className="space-y-1">
+                  {sc.finishers.map((num, pos) => (
+                    <li
+                      key={num}
+                      className="flex items-center gap-2 text-sm font-medium text-violet-800"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-200 text-xs font-bold">
+                        {pos + 1}
+                      </span>
+                      <span>
+                        N°{num} {nameMap.get(num) ?? ""}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            );
+          });
+        })()}
+
         {/* Bets */}
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-semibold text-slate-900">Mes paris</h2>
           <ul className="mt-2 divide-y divide-slate-100">
-            {order.bets.map((bet) => (
-              <li key={bet.id} className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">
-                    {bet.offer.betType.name}{" "}
-                    <span className="text-slate-400">
-                      · {bet.course.hippodrome} C{bet.course.number}
-                    </span>
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {formatSelectionsWithNames(
-                      bet.selections,
-                      bet.offer.betType.ordered,
-                      bet.course.runners
-                    )}
-                  </p>
-                </div>
-                <span className="text-sm font-semibold">
-                  {formatFCFA(bet.price)}
-                </span>
-              </li>
-            ))}
+            {order.bets.map((bet) => {
+              const finishers = bet.course.finishers ?? [];
+              const finisherSet = new Set(finishers);
+              const isGraded = bet.result !== "PENDING";
+              const won = bet.result === "WON";
+
+              // "Ordre" check: filter picks to finishers (preserving pick order)
+              // and compare to finishers order.
+              let isOrdre = false;
+              if (won && finishers.length === 5) {
+                const matching = bet.selections.filter((s) =>
+                  finisherSet.has(s)
+                );
+                isOrdre = matching.every((p, i) => p === finishers[i]);
+              }
+
+              const byNum = new Map(
+                bet.course.runners.map((r) => [r.number, r.name])
+              );
+
+              return (
+                <li key={bet.id} className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">
+                        {bet.offer.betType.name}{" "}
+                        <span className="text-slate-400">
+                          &middot; {bet.course.hippodrome} C
+                          {bet.course.number}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isGraded && (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            won
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {won
+                            ? isOrdre
+                              ? "GAGNÉ · Ordre"
+                              : "GAGNÉ · Désordre"
+                            : "PERDU"}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold">
+                        {formatFCFA(bet.price)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Horse selection with highlighting */}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {bet.selections.map((num) => {
+                      const inTop5 = finisherSet.has(num);
+                      const pos = inTop5
+                        ? finishers.indexOf(num) + 1
+                        : null;
+                      return (
+                        <span
+                          key={num}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                            isGraded
+                              ? inTop5
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-400"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {pos && (
+                            <span className="font-bold text-emerald-600">
+                              {pos}e
+                            </span>
+                          )}
+                          {num} {byNum.get(num) ?? ""}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {/* Payout */}
+                  {won && bet.payout > 0 && (
+                    <p className="mt-1.5 text-sm font-bold text-emerald-700">
+                      Gain : {formatFCFA(bet.payout)}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="font-semibold">Total</span>
+            <span className="font-semibold">Total misé</span>
             <span className="font-bold text-emerald-700">
               {formatFCFA(order.total)}
             </span>
           </div>
+          {isSettled && totalPayout > 0 && (
+            <div className="flex items-center justify-between border-t border-emerald-100 pt-3 mt-2">
+              <span className="font-semibold text-emerald-700">Total gains</span>
+              <span className="font-bold text-emerald-700 text-lg">
+                {formatFCFA(totalPayout)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Ticket photos */}

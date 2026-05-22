@@ -16,10 +16,13 @@ export async function GET(req: Request) {
     include: { bets: { include: { offer: { include: { betType: true } } } } },
   });
 
+  const grandTotal = orders.reduce((sum, o) => sum + o.total, 0);
+
   const pdf = await generatePlacementSheetPdf({
     businessName,
     title: "Feuille de placement",
     generatedAt: new Date(),
+    grandTotal,
     orders: orders.map((o) => ({
       code: o.code,
       customerName: o.customerName,

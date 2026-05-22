@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isOperatorAuthed } from "@/lib/auth";
-import { cancelOrder, verifyPayment } from "@/lib/actions";
+import { cancelOrder, verifyPayment, updateBetPayout } from "@/lib/actions";
 import {
   ORDER_STATUS_COLOR,
   ORDER_STATUS_LABEL,
@@ -11,6 +11,7 @@ import {
   formatSelectionsWithNames,
 } from "@/lib/format";
 import TicketUpload from "./TicketUpload";
+import PayoutInput from "./PayoutInput";
 
 export const dynamic = "force-dynamic";
 
@@ -77,28 +78,49 @@ export default async function OperatorOrderPage({
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-semibold text-slate-900">Paris</h2>
           <ul className="mt-2 divide-y divide-slate-100">
-            {order.bets.map((bet) => (
-              <li key={bet.id} className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">
-                    {bet.offer.betType.name}{" "}
-                    <span className="text-slate-400">
-                      · {bet.course.hippodrome} C{bet.course.number}
+            {order.bets.map((bet) => {
+              const isGraded = bet.result !== "PENDING";
+              const won = bet.result === "WON";
+              return (
+                <li key={bet.id} className="py-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">
+                        {bet.offer.betType.name}{" "}
+                        <span className="text-slate-400">
+                          &middot; {bet.course.hippodrome} C{bet.course.number}
+                        </span>
+                        {isGraded && (
+                          <span
+                            className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${
+                              won
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {won ? "GAGNÉ" : "PERDU"}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {formatSelectionsWithNames(
+                          bet.selections,
+                          bet.offer.betType.ordered,
+                          bet.course.runners
+                        )}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold">
+                      {formatFCFA(bet.price)}
                     </span>
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {formatSelectionsWithNames(
-                      bet.selections,
-                      bet.offer.betType.ordered,
-                      bet.course.runners
-                    )}
-                  </p>
-                </div>
-                <span className="text-sm font-semibold">
-                  {formatFCFA(bet.price)}
-                </span>
-              </li>
-            ))}
+                  </div>
+                  {/* Payout entry for won bets */}
+                  {won && (
+                    <PayoutInput betId={bet.id} currentPayout={bet.payout} />
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
             <span className="font-semibold">Total</span>

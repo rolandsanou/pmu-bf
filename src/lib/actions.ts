@@ -9,6 +9,8 @@ import { loginOperator, logoutOperator, requireOperator } from "./auth";
 import { notifyCustomerTicketPlaced, notifyOperatorNewOrder } from "./notify";
 import { saveTicketPhoto } from "./storage";
 import type { CreateOrderResult, NewOrderInput } from "./order-types";
+import { parseJournalPdf, type ParsedCourse } from "./journal-parser";
+import { getNextRaceDayCutoff } from "./race-days";
 
 export async function createOrder(
   input: NewOrderInput
@@ -179,4 +181,230 @@ export async function placeOrderWithPhoto(formData: FormData): Promise<void> {
   revalidatePath("/operateur");
   revalidatePath(`/operateur/commande/${orderId}`);
   redirect(`/operateur/commande/${orderId}`);
+}
+
+// ── Result entry ──────────────────────────────────────────────────────────
+
+/**
+ * Settle a course: store the top-5 finishers and auto-grade every bet.
+ */
+export async function settleResults(
+  courseId: string,
+  finishers: number[]
+): Promise<{ ok: boolean; error?: string }> {
+  await requireOperator();
+
+  if (finishers.length !== 5) return { ok: false, error: "Il faut 5 arrivants." };
+  if (new Set(finishers).size !== 5)
+    return { ok: false, error: "Les 5 arrivants doivent être différents." };
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    include: { runners: true },
+  });
+  if (!course) return { ok: false, error: "Course introuvable." };
+
+  const validNums = new Set(course.runners.map((r) => r.number));
+  for (const n of finishers) {
+    if (!validNums.has(n))
+      return { ok: false, error: `Le n°${n} n'est pas un partant de cette course.` };
+  }
+
+  // 1. Store finishers + close the course.
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { finishers, status: "SETTLED" },
+  });
+
+  // 2. Grade every bet on this course.
+  const bets = await prisma.bet.findMany({ where: { courseId } });
+  const finisherSet = new Set(finishers);
+
+  for (const bet of bets) {
+    // How many of the customer's picks are in the top 5?
+    const matching = bet.selections.filter((s) => finisherSet.has(s));
+    const won = matching.length >= 5;
+
+    await prisma.bet.update({
+      where: { id: bet.id },
+      data: { result: won ? "WON" : "LOST" },
+    });
+  }
+
+  // 3. Settle orders: if ALL bets of an order are graded, mark SETTLED.
+  const affectedOrderIds = [...new Set(bets.map((b) => b.orderId))];
+  for (const orderId of affectedOrderIds) {
+    const orderBets = await prisma.bet.findMany({ where: { orderId } });
+    const allGraded = orderBets.every((b) => b.result !== "PENDING");
+    if (allGraded) {
+      // Only move to SETTLED if the order was PLACED (don't override CANCELLED).
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      if (order && order.status === "PLACED") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: "SETTLED" },
+        });
+      }
+    }
+  }
+
+  revalidatePath("/operateur");
+  revalidatePath("/operateur/resultats");
+  return { ok: true };
+}
+
+/**
+ * Set the payout amount for an individual bet (operator enters manually).
+ */
+export async function updateBetPayout(
+  betId: string,
+  payout: number
+): Promise<void> {
+  await requireOperator();
+  if (payout < 0) throw new Error("Le gain ne peut pas être négatif.");
+  await prisma.bet.update({
+    where: { id: betId },
+    data: { payout },
+  });
+  const bet = await prisma.bet.findUnique({ where: { id: betId } });
+  if (bet) {
+    revalidatePath(`/operateur/commande/${bet.orderId}`);
+  }
+}
+
+// ── Journal PDF import ────────────────────────────────────────────────
+
+/**
+ * Parse a PMU'B journal PDF and return structured data for review.
+ */
+export async function parseJournal(
+  formData: FormData
+): Promise<{ ok: true; course: ParsedCourse } | { ok: false; error: string }> {
+  await requireOperator();
+
+  const file = formData.get("pdf") as File | null;
+  if (!file || file.size === 0) return { ok: false, error: "Aucun fichier PDF." };
+  if (file.size > 10 * 1024 * 1024)
+    return { ok: false, error: "Fichier trop volumineux (max 10 Mo)." };
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const parsed = await parseJournalPdf(bytes);
+    if (parsed.runners.length === 0) {
+      return {
+        ok: false,
+        error:
+          "Aucun cheval trouvé dans le PDF. Le format n'est peut-être pas reconnu. Vous pouvez saisir la course manuellement.",
+      };
+    }
+    return { ok: true, course: parsed };
+  } catch {
+    return { ok: false, error: "Erreur de lecture du PDF." };
+  }
+}
+
+/**
+ * Create a course from parsed journal data (after operator review).
+ * The cutoff is set to the next race day at 18:00 UTC.
+ */
+export async function importCourse(input: {
+  hippodrome: string;
+  number: number;
+  prizeName: string;
+  discipline: "ATTELE" | "MONTE" | "PLAT";
+  distanceMeters: number;
+  prizeMoney: number;
+  runners: {
+    number: number;
+    name: string;
+    driver: string;
+    trainer: string;
+    owner: string;
+    sexAge: string;
+    chrono: string;
+    recentForm: string;
+    gains: number;
+    odds: string;
+  }[];
+}): Promise<{ ok: true; courseId: string } | { ok: false; error: string }> {
+  await requireOperator();
+
+  if (!input.hippodrome.trim())
+    return { ok: false, error: "L'hippodrome est requis." };
+  if (input.runners.length === 0)
+    return { ok: false, error: "Il faut au moins un cheval." };
+
+  const now = new Date();
+  const cutoffTime = getNextRaceDayCutoff(now);
+  const startTime = cutoffTime;
+  const day = new Date(
+    Date.UTC(
+      cutoffTime.getUTCFullYear(),
+      cutoffTime.getUTCMonth(),
+      cutoffTime.getUTCDate()
+    )
+  );
+
+  // Create course + runners.
+  const course = await prisma.course.create({
+    data: {
+      hippodrome: input.hippodrome.trim(),
+      number: input.number,
+      prizeName: input.prizeName.trim() || null,
+      discipline: input.discipline,
+      distanceMeters: input.distanceMeters,
+      prizeMoney: input.prizeMoney || null,
+      date: day,
+      startTime,
+      cutoffTime,
+      runnerCount: input.runners.length,
+      status: "OPEN",
+      runners: {
+        create: input.runners.map((r) => ({
+          number: r.number,
+          name: r.name,
+          driver: r.driver || null,
+          trainer: r.trainer || null,
+          owner: r.owner || null,
+          sexAge: r.sexAge || null,
+          chrono: r.chrono || null,
+          recentForm: r.recentForm || null,
+          gains: r.gains || null,
+          odds: r.odds || null,
+        })),
+      },
+    },
+  });
+
+  // Auto-create the 4 Report 4+1 bet offers (5/6/7/8 chevaux).
+  const betTypes = await prisma.betType.findMany({
+    where: { code: { startsWith: "R41_" }, active: true },
+  });
+
+  for (const bt of betTypes) {
+    // Price is stored on the BetType offers system — look up from existing offers
+    // or use the standard C(N,5)×300 formula.
+    const n = bt.horsesToSelect;
+    const combos = factorial(n) / (factorial(5) * factorial(n - 5));
+    const price = combos * 300;
+
+    await prisma.courseBetOffer.create({
+      data: {
+        courseId: course.id,
+        betTypeId: bt.id,
+        price,
+        active: true,
+      },
+    });
+  }
+
+  revalidatePath("/jouer");
+  revalidatePath("/operateur");
+  return { ok: true, courseId: course.id };
+}
+
+function factorial(n: number): number {
+  let r = 1;
+  for (let i = 2; i <= n; i++) r *= i;
+  return r;
 }

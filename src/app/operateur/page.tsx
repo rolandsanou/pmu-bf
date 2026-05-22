@@ -45,6 +45,18 @@ export default async function DashboardPage({
     where: { status: "PENDING_PAYMENT" },
   });
 
+  // Sales stats (all non-cancelled orders)
+  const allOrders = await prisma.order.findMany({
+    where: { status: { not: "CANCELLED" } },
+    select: { total: true, status: true },
+  });
+  const totalSales = allOrders.reduce((sum, o) => sum + o.total, 0);
+  const paidOrders = allOrders.filter(
+    (o) => o.status !== "PENDING_PAYMENT"
+  );
+  const confirmedSales = paidOrders.reduce((sum, o) => sum + o.total, 0);
+  const orderCount = allOrders.length;
+
   return (
     <main className="flex-1 flex flex-col">
       <header className="bg-white border-b border-slate-200 px-4 py-3">
@@ -73,13 +85,49 @@ export default async function DashboardPage({
           )}
         </div>
 
-        <a
-          href="/operateur/feuille"
-          target="_blank"
-          className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          📄 Feuille de placement (PDF)
-        </a>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Link
+            href="/operateur/importer"
+            className="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            📥 Importer
+          </Link>
+          <a
+            href="/operateur/feuille"
+            target="_blank"
+            className="flex items-center justify-center gap-1 rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            📄 Placement
+          </a>
+          <Link
+            href="/operateur/resultats"
+            className="flex items-center justify-center gap-1 rounded-lg bg-violet-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
+          >
+            🏁 Résultats
+          </Link>
+        </div>
+
+        {/* Sales summary */}
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-slate-900">{orderCount}</p>
+              <p className="text-xs text-slate-500">Commandes</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-700">
+                {formatFCFA(confirmedSales)}
+              </p>
+              <p className="text-xs text-slate-500">Ventes confirmées</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-600">
+                {formatFCFA(totalSales)}
+              </p>
+              <p className="text-xs text-slate-500">Total déclaré</p>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {FILTERS.map((f) => {
