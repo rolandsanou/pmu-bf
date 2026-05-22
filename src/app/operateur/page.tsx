@@ -1,19 +1,33 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import type { OrderStatus, Prisma } from "@prisma/client";
+import type { OrderStatus, CourseStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getOperator } from "@/lib/auth";
 import { logoutAction, verifyPayment } from "@/lib/actions";
 import {
   ORDER_STATUS_COLOR,
   ORDER_STATUS_LABEL,
+  DISCIPLINE_LABEL,
   formatFCFA,
   formatDateTime,
+  formatCourseLabel,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 const businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Pari Express";
+
+const COURSE_STATUS_LABEL: Record<CourseStatus, string> = {
+  OPEN: "En cours",
+  CLOSED: "Fermée",
+  SETTLED: "Terminée",
+};
+
+const COURSE_STATUS_COLOR: Record<CourseStatus, string> = {
+  OPEN: "bg-emerald-100 text-emerald-800",
+  CLOSED: "bg-amber-100 text-amber-800",
+  SETTLED: "bg-violet-100 text-violet-800",
+};
 
 const FILTERS: { key: string; label: string; count?: boolean }[] = [
   { key: "ALL", label: "Toutes" },
@@ -23,32 +37,67 @@ const FILTERS: { key: string; label: string; count?: boolean }[] = [
   { key: "SETTLED", label: "Terminées" },
 ];
 
+function formatDateShort(d: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(d);
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; course?: string }>;
 }) {
   const operator = await getOperator();
   if (!operator) redirect("/operateur/login");
 
-  const { status } = await searchParams;
+  const { status, course: courseFilter } = await searchParams;
+
+  // ── Fetch all courses (most recent first) ──────────────────────
+  const courses = await prisma.course.findMany({
+    orderBy: { date: "desc" },
+    include: {
+      _count: { select: { bets: true } },
+      offers: { select: { id: true } },
+    },
+    take: 20,
+  });
+
+  // Determine active course filter
+  const activeCourseId = courseFilter || (courses.length > 0 ? courses[0].id : null);
+  const activeCourse = courses.find((c) => c.id === activeCourseId) ?? courses[0] ?? null;
+
+  // ── Orders query: filter by course if a course is selected ─────
   const active = status && status !== "ALL" ? (status as OrderStatus) : null;
-  const where: Prisma.OrderWhereInput = active ? { status: active } : {};
+  const orderWhere: Prisma.OrderWhereInput = {
+    ...(active ? { status: active } : {}),
+    ...(activeCourseId ? { bets: { some: { courseId: activeCourseId } } } : {}),
+  };
 
   const orders = await prisma.order.findMany({
-    where,
+    where: orderWhere,
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { bets: true } } },
     take: 100,
   });
 
   const pendingCount = await prisma.order.count({
-    where: { status: "PENDING_PAYMENT" },
+    where: {
+      status: "PENDING_PAYMENT",
+      ...(activeCourseId ? { bets: { some: { courseId: activeCourseId } } } : {}),
+    },
   });
 
-  // Sales stats (all non-cancelled orders)
+  // Sales stats scoped to active course
+  const statsWhere: Prisma.OrderWhereInput = {
+    status: { not: "CANCELLED" },
+    ...(activeCourseId ? { bets: { some: { courseId: activeCourseId } } } : {}),
+  };
   const allOrders = await prisma.order.findMany({
-    where: { status: { not: "CANCELLED" } },
+    where: statsWhere,
     select: { total: true, status: true },
   });
   const totalSales = allOrders.reduce((sum, o) => sum + o.total, 0);
@@ -77,10 +126,110 @@ export default async function DashboardPage({
 
       <div className="max-w-3xl w-full mx-auto px-4 py-5 space-y-4">
 
+        {/* ── Course selector ────────────────────────────────────── */}
+        {courses.length > 0 && (
+          <div className="space-y-3">
+            {/* Course tabs - horizontal scroll */}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {courses.map((c) => {
+                const isActive = c.id === activeCourseId;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/operateur?course=${c.id}${status ? `&status=${status}` : ""}`}
+                    className={`shrink-0 rounded-xl border px-4 py-3 transition ${
+                      isActive
+                        ? "border-slate-900 bg-slate-900 text-white shadow-md"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold ${isActive ? "text-white" : "text-slate-900"}`}>
+                        {c.hippodrome} C{c.number}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          isActive
+                            ? c.status === "OPEN"
+                              ? "bg-emerald-500/20 text-emerald-200"
+                              : c.status === "CLOSED"
+                              ? "bg-amber-500/20 text-amber-200"
+                              : "bg-violet-500/20 text-violet-200"
+                            : COURSE_STATUS_COLOR[c.status]
+                        }`}
+                      >
+                        {COURSE_STATUS_LABEL[c.status]}
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-0.5 capitalize ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                      {formatDateShort(c.date)}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Active course detail card */}
+            {activeCourse && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-bold text-slate-900">
+                        {activeCourse.hippodrome} — Course {activeCourse.number}
+                      </h2>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${COURSE_STATUS_COLOR[activeCourse.status]}`}>
+                        {COURSE_STATUS_LABEL[activeCourse.status]}
+                      </span>
+                    </div>
+                    {activeCourse.prizeName && (
+                      <p className="text-sm text-slate-500 mt-0.5">{activeCourse.prizeName}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span>{DISCIPLINE_LABEL[activeCourse.discipline]}</span>
+                      <span>{activeCourse.distanceMeters} m</span>
+                      <span>{activeCourse.runnerCount} partants</span>
+                      <span>{activeCourse._count.bets} pari(s)</span>
+                    </div>
+                  </div>
+                  {activeCourse.status === "SETTLED" && activeCourse.finishers.length > 0 && (
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] font-semibold text-violet-500 uppercase tracking-wide">Arrivée</p>
+                      <p className="text-sm font-mono font-bold text-violet-700 mt-0.5">
+                        {activeCourse.finishers.join(" - ")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick actions for this course */}
+                <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                  {activeCourse.status !== "SETTLED" && (
+                    <Link
+                      href={`/operateur/resultats/${activeCourse.id}`}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-800 transition"
+                    >
+                      Saisir résultats
+                    </Link>
+                  )}
+                  {activeCourse.status === "SETTLED" && (
+                    <Link
+                      href={`/operateur/resultats/${activeCourse.id}`}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-700 transition"
+                    >
+                      Voir résultats
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Urgent alert: pending payments ──────────────────────── */}
         {pendingCount > 0 && (
           <Link
-            href="/operateur?status=PENDING_PAYMENT"
+            href={`/operateur?status=PENDING_PAYMENT${activeCourseId ? `&course=${activeCourseId}` : ""}`}
             className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 transition hover:bg-amber-100"
           >
             <div className="flex items-center gap-3">
@@ -168,10 +317,11 @@ export default async function DashboardPage({
             const isActive =
               (active ?? "ALL") === f.key ||
               (!active && f.key === "ALL");
+            const courseParam = activeCourseId ? `&course=${activeCourseId}` : "";
             return (
               <Link
                 key={f.key}
-                href={`/operateur?status=${f.key}`}
+                href={`/operateur?status=${f.key}${courseParam}`}
                 className={`flex-1 rounded-md px-2 py-1.5 text-center text-sm font-medium transition ${
                   isActive
                     ? "bg-slate-900 text-white shadow-sm"
