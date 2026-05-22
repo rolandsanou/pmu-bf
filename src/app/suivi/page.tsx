@@ -1,17 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import SuiviForm from "./SuiviForm";
 
 const businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Pari Express";
 
 export default function SuiviPage() {
-  async function go(formData: FormData) {
-    "use server";
-    const code = String(formData.get("code") || "")
-      .trim()
-      .toUpperCase();
-    if (code) redirect(`/commande/${code}`);
-  }
-
   return (
     <main className="flex-1 flex flex-col">
       <header className="bg-white border-b border-slate-200 px-4 py-3">
@@ -30,17 +22,7 @@ export default function SuiviPage() {
         <p className="text-sm text-slate-500 mb-4">
           Entrez le code reçu lors de votre pari.
         </p>
-        <form action={go} className="flex gap-2">
-          <input
-            name="code"
-            placeholder="Ex: A7K9P2"
-            autoCapitalize="characters"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 uppercase tracking-wider"
-          />
-          <button className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700">
-            Voir
-          </button>
-        </form>
+        <SuiviForm />
       </div>
     </main>
   );

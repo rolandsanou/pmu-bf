@@ -73,6 +73,14 @@ export default async function DashboardPage({
           )}
         </div>
 
+        <a
+          href="/operateur/feuille"
+          target="_blank"
+          className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+        >
+          📄 Feuille de placement (PDF)
+        </a>
+
         <div className="mt-4 flex flex-wrap gap-2">
           {FILTERS.map((f) => {
             const isActive = (active ?? "ALL") === f.key;

@@ -49,21 +49,21 @@ async function main() {
     typeIdByCode[bt.code] = rec.id;
   }
 
-  // Nocturne post time 20:15 (Burkina Faso is UTC, so the hour maps directly).
-  // If that moment already passed today, schedule it for the next day.
+  // Bets close at 18:00 UTC (Burkina Faso is UTC, so the hour maps directly).
+  // The race day is the next day whose 18:00 cutoff is still ahead.
   const now = new Date();
-  let startTime = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 20, 15)
+  let cutoffTime = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 18, 0, 0)
   );
-  if (startTime.getTime() <= now.getTime()) {
-    startTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
+  if (cutoffTime.getTime() <= now.getTime()) {
+    cutoffTime = new Date(cutoffTime.getTime() + 24 * 60 * 60 * 1000);
   }
-  const cutoffTime = new Date(startTime.getTime() - 10 * 60 * 1000);
+  const startTime = cutoffTime; // displayed post time = the 18:00 UTC cutoff
   const day = new Date(
     Date.UTC(
-      startTime.getUTCFullYear(),
-      startTime.getUTCMonth(),
-      startTime.getUTCDate()
+      cutoffTime.getUTCFullYear(),
+      cutoffTime.getUTCMonth(),
+      cutoffTime.getUTCDate()
     )
   );
 

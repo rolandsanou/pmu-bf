@@ -12,7 +12,9 @@ const cloudinaryConfigured = !!(
  *
  * - In production (Cloudinary env set) it uploads to Cloudinary, so photos
  *   survive on hosts with an ephemeral filesystem (Render/Vercel free tiers).
- * - In local dev (no Cloudinary) it writes to public/uploads/tickets.
+ * - Without Cloudinary it writes to the uploads dir and returns an /api/tickets
+ *   URL served by a route handler (Next does not reliably serve files added to
+ *   public/ at runtime in production).
  */
 export async function saveTicketPhoto(
   bytes: Buffer,
@@ -44,5 +46,5 @@ export async function saveTicketPhoto(
   await mkdir(dir, { recursive: true });
   const fileName = `${key}.${ext}`;
   await writeFile(path.join(dir, fileName), bytes);
-  return `/uploads/tickets/${fileName}`;
+  return `/api/tickets/${fileName}`;
 }

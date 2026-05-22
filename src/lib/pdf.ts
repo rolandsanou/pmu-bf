@@ -145,6 +145,93 @@ export async function generateOrderReceiptPdf(
   return doc.save();
 }
 
+export type PlacementBet = { label: string; selections: string };
+export type PlacementOrder = {
+  code: string;
+  customerName: string;
+  customerPhone: string;
+  total: number;
+  placed: boolean;
+  bets: PlacementBet[];
+};
+export type PlacementData = {
+  businessName: string;
+  title: string;
+  generatedAt: Date;
+  orders: PlacementOrder[];
+};
+
+// Operator worksheet: every bettor + their bets, to place manually at the PMU
+// counter. Paginates automatically.
+export async function generatePlacementSheetPdf(
+  data: PlacementData
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const SIZE: [number, number] = [595.28, 841.89];
+  let page = doc.addPage(SIZE);
+  const width = page.getSize().width;
+  let y = page.getSize().height - MARGIN;
+
+  const ensure = (needed: number) => {
+    if (y - needed < MARGIN) {
+      page = doc.addPage(SIZE);
+      y = page.getSize().height - MARGIN;
+    }
+  };
+
+  page.drawText(S(data.businessName), { x: MARGIN, y, size: 16, font: bold, color: NAVY });
+  y -= 18;
+  page.drawText(S(data.title), { x: MARGIN, y, size: 11, font, color: GREY });
+  y -= 13;
+  page.drawText(
+    S(`Généré le ${formatDateTime(data.generatedAt)} — ${data.orders.length} commande(s)`),
+    { x: MARGIN, y, size: 9, font, color: GREY }
+  );
+  y -= 16;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 1, color: LIGHT });
+  y -= 18;
+
+  if (data.orders.length === 0) {
+    page.drawText(S("Aucune commande à placer."), { x: MARGIN, y, size: 11, font, color: GREY });
+  }
+
+  for (const o of data.orders) {
+    ensure(34 + o.bets.length * 13);
+    const head = `${o.placed ? "[x]" : "[ ]"} ${o.code}   ${o.customerName}   ${o.customerPhone}`;
+    page.drawText(S(head), { x: MARGIN, y, size: 11, font: bold, color: o.placed ? GREY : NAVY });
+    const tag = o.placed ? "PLACÉ" : "À PLACER";
+    const tagW = bold.widthOfTextAtSize(tag, 9);
+    page.drawText(S(tag), {
+      x: width - MARGIN - tagW,
+      y,
+      size: 9,
+      font: bold,
+      color: o.placed ? rgb(0.15, 0.5, 0.25) : rgb(0.7, 0.35, 0),
+    });
+    y -= 14;
+    for (const b of o.bets) {
+      ensure(13);
+      page.drawText(S(`   - ${b.label} : ${b.selections}`), { x: MARGIN, y, size: 10, font });
+      y -= 13;
+    }
+    const totalStr = S(`Total: ${formatFCFA(o.total)}`);
+    page.drawText(totalStr, {
+      x: width - MARGIN - font.widthOfTextAtSize(totalStr, 9),
+      y,
+      size: 9,
+      font,
+      color: GREY,
+    });
+    y -= 8;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: width - MARGIN, y }, thickness: 0.5, color: LIGHT });
+    y -= 12;
+  }
+
+  return doc.save();
+}
+
 function drawTableHeader(page: PDFPage, bold: PDFFont, y: number) {
   const { width } = page.getSize();
   page.drawRectangle({

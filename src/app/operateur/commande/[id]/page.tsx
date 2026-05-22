@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isOperatorAuthed } from "@/lib/auth";
-import { cancelOrder, placeOrderWithPhoto, verifyPayment } from "@/lib/actions";
+import { cancelOrder, verifyPayment } from "@/lib/actions";
 import {
   ORDER_STATUS_COLOR,
   ORDER_STATUS_LABEL,
@@ -10,6 +10,7 @@ import {
   formatDateTime,
   formatSelectionsWithNames,
 } from "@/lib/format";
+import TicketUpload from "./TicketUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -120,43 +121,14 @@ export default async function OperatorOrderPage({
           )}
 
           {order.status === "PAID" && (
-            <form action={placeOrderWithPhoto} className="space-y-2">
-              <input type="hidden" name="orderId" value={order.id} />
-              <label className="block text-sm text-slate-600">
-                Photos du ticket (une ou plusieurs)
-              </label>
-              <input
-                type="file"
-                name="photo"
-                accept="image/*"
-                multiple
-                required
-                className="block w-full text-sm"
-              />
-              <button className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white hover:bg-emerald-700">
-                Marquer placé + envoyer le ticket
-              </button>
-            </form>
+            <TicketUpload
+              orderId={order.id}
+              cta="Marquer placé + envoyer le ticket"
+            />
           )}
 
           {order.status === "PLACED" && (
-            <form action={placeOrderWithPhoto} className="space-y-2">
-              <input type="hidden" name="orderId" value={order.id} />
-              <label className="block text-sm text-slate-600">
-                Ajouter des photos du ticket
-              </label>
-              <input
-                type="file"
-                name="photo"
-                accept="image/*"
-                multiple
-                required
-                className="block w-full text-sm"
-              />
-              <button className="w-full rounded-lg border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50">
-                Renvoyer le ticket
-              </button>
-            </form>
+            <TicketUpload orderId={order.id} cta="Envoyer d'autres photos" />
           )}
 
           {canCancel && (

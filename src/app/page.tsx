@@ -26,6 +26,12 @@ export default function Home() {
           >
             Suivre ma commande
           </Link>
+          <Link
+            href="/aide"
+            className="text-sm font-medium text-emerald-700 hover:underline"
+          >
+            Comment ça marche ?
+          </Link>
         </div>
       </div>
     </main>

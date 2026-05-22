@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import {
   ORDER_STATUS_COLOR,
@@ -38,7 +37,38 @@ export default async function OrderPage({
     },
   });
 
-  if (!order) notFound();
+  if (!order) {
+    return (
+      <main className="flex-1 flex flex-col">
+        <header className="bg-white border-b border-slate-200 px-4 py-3">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <Link href="/" className="font-bold text-slate-900">
+              🏇 {businessName}
+            </Link>
+            <Link href="/jouer" className="text-sm text-emerald-700 font-medium">
+              Nouveau pari
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-md w-full mx-auto px-4 py-12 text-center">
+          <p className="text-4xl">🔍</p>
+          <h1 className="mt-3 text-lg font-bold text-slate-900">
+            Commande introuvable
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Le code <span className="font-semibold">{code.toUpperCase()}</span>{" "}
+            ne correspond à aucune commande. Vérifiez le code et réessayez.
+          </p>
+          <Link
+            href="/suivi"
+            className="mt-5 inline-block rounded-lg border border-slate-300 bg-white px-5 py-2.5 font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Réessayer
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   const currentStep = STEPS.findIndex((s) => s.key === order.status);
 
@@ -149,16 +179,29 @@ export default async function OrderPage({
             <p className="text-xs text-slate-500 mb-2">
               Preuve du pari placé.
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {order.ticketPhotos.map((p) => (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  key={p.id}
-                  src={p.url}
-                  alt="Ticket"
-                  className="rounded-lg border border-slate-200"
-                />
-              ))}
+            <div className="grid grid-cols-2 gap-3">
+              {order.ticketPhotos.map((p, i) => {
+                const dl = p.url.startsWith("/api/tickets/")
+                  ? `${p.url}?dl=1`
+                  : p.url;
+                return (
+                  <div key={p.id} className="space-y-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={`Ticket ${i + 1}`}
+                      className="w-full rounded-lg border border-slate-200"
+                    />
+                    <a
+                      href={dl}
+                      download
+                      className="block rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-slate-800"
+                    >
+                      Télécharger
+                    </a>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

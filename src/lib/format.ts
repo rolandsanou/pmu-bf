@@ -6,15 +6,21 @@ export function formatFCFA(n: number): string {
   return `${fcfa.format(n)} FCFA`;
 }
 
+// Burkina Faso is UTC+0 — render all times in UTC so they're correct regardless
+// of where the server runs (Render is in Europe).
 export function formatDateTime(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "UTC",
   }).format(d);
 }
 
 export function formatTime(d: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { timeStyle: "short" }).format(d);
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(d);
 }
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
