@@ -125,8 +125,7 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
   function displayHorses(item: CartItem) {
     const c = courses.find((x) => x.id === item.courseId);
     const byNum = new Map((c?.runners ?? []).map((r) => [r.number, r.name]));
-    const list = [...item.horses].sort((a, b) => a - b);
-    return list.map((n) => `${n} ${byNum.get(n) ?? ""}`.trim()).join(", ");
+    return item.horses.map((n) => `${n} ${byNum.get(n) ?? ""}`.trim()).join(", ");
   }
 
   function submit() {
@@ -203,11 +202,9 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="font-bold text-slate-900">Report 4+1</h2>
-          <span className="text-xs text-slate-400">Pas d&apos;ordre</span>
         </div>
         <p className="mt-0.5 text-xs text-slate-500">
-          Choisissez une formule, puis vos chevaux. Le résultat est vu à
-          l&apos;arrivée.
+          Choisissez une formule, puis vos chevaux dans l&apos;ordre souhaité.
         </p>
 
         {/* Formule selector */}

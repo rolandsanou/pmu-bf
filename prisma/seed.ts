@@ -5,10 +5,10 @@ const prisma = new PrismaClient();
 // Report 4+1 "carnet" formules: you pick N horses, price is fixed per N.
 // (Price = number of 5-horse combinations among your N picks × 300 F.)
 const BET_TYPES = [
-  { code: "R41_5", name: "4+1 — 5 chevaux", horsesToSelect: 5, ordered: false, price: 300, description: "Pari de base" },
-  { code: "R41_6", name: "4+1 — 6 chevaux", horsesToSelect: 6, ordered: false, price: 1800, description: "Grand carnet" },
-  { code: "R41_7", name: "4+1 — 7 chevaux", horsesToSelect: 7, ordered: false, price: 6300, description: "Grand carnet" },
-  { code: "R41_8", name: "4+1 — 8 chevaux", horsesToSelect: 8, ordered: false, price: 16800, description: "Grand carnet" },
+  { code: "R41_5", name: "4+1 — 5 chevaux", horsesToSelect: 5, ordered: true, price: 300, description: "Pari de base" },
+  { code: "R41_6", name: "4+1 — 6 chevaux", horsesToSelect: 6, ordered: true, price: 1800, description: "Grand carnet" },
+  { code: "R41_7", name: "4+1 — 7 chevaux", horsesToSelect: 7, ordered: true, price: 6300, description: "Grand carnet" },
+  { code: "R41_8", name: "4+1 — 8 chevaux", horsesToSelect: 8, ordered: true, price: 16800, description: "Grand carnet" },
 ];
 
 // Featured race from the PMU'B journal of 22/05/2026.
