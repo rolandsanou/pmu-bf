@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import {
@@ -7,6 +8,7 @@ import {
   formatDateTime,
   formatSelectionsWithNames,
 } from "@/lib/format";
+import GoodLuckBanner from "./GoodLuckBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +91,10 @@ export default async function OrderPage({
       </header>
 
       <div className="max-w-2xl w-full mx-auto px-4 py-6 space-y-5">
+        <Suspense>
+          <GoodLuckBanner />
+        </Suspense>
+
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between">
             <div>

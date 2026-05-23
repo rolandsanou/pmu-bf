@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createOrder } from "@/lib/actions";
 import { formatFCFA } from "@/lib/format";
 import type { NewOrderInput } from "@/lib/order-types";
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Bonjour";
+  if (h >= 12 && h < 18) return "Bon après-midi";
+  return "Bonsoir";
+}
 
 export type ClientFormule = {
   offerId: string;
@@ -67,6 +74,9 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
   const [paymentRef, setPaymentRef] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const greeting = useMemo(() => getGreeting(), []);
 
   const course = courses.find((c) => c.id === selectedCourseId) ?? first;
   const formule =
@@ -132,13 +142,17 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
     return item.horses.map((n) => `${n} ${byNum.get(n) ?? ""}`.trim()).join(", ");
   }
 
-  function submit() {
+  function handleValidate() {
     setError(null);
     if (!name.trim()) return setError("Entrez votre nom complet.");
     if (!phone.trim()) return setError("Entrez votre numéro de téléphone.");
     if (!paymentRef.trim())
       return setError("Entrez la référence du paiement (ID de transaction).");
+    setShowConfirm(true);
+  }
 
+  function confirmSubmit() {
+    setShowConfirm(false);
     const input: NewOrderInput = {
       customerName: name.trim(),
       customerPhone: phone.trim(),
@@ -151,7 +165,7 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
     startTransition(async () => {
       const res = await createOrder(input);
       if (res.ok) {
-        router.push(`/commande/${res.code}`);
+        router.push(`/commande/${res.code}?new=1`);
       } else {
         setError(res.error);
       }
@@ -170,6 +184,16 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
 
   return (
     <div className="pb-28">
+      {/* Greeting */}
+      <div className="mb-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 p-4">
+        <p className="text-lg font-bold text-emerald-800">
+          {greeting} 👋
+        </p>
+        <p className="text-sm text-emerald-600">
+          Bienvenue sur Pari Express ! Choisissez vos chevaux et tentez votre chance.
+        </p>
+      </div>
+
       {/* Course header */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         {courses.length > 1 && (
@@ -433,7 +457,7 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
             )}
 
             <button
-              onClick={submit}
+              onClick={handleValidate}
               disabled={pending}
               className="rounded-lg bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
@@ -457,6 +481,38 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
             >
               Continuer
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <p className="text-center text-3xl">🏇</p>
+            <h3 className="mt-2 text-center text-lg font-bold text-slate-900">
+              Confirmer votre ticket ?
+            </h3>
+            <p className="mt-2 text-center text-sm text-slate-500">
+              Vous allez valider <strong>{cart.length} pari(s)</strong> pour un
+              total de <strong>{formatFCFA(total)}</strong>. Cette action est
+              irréversible.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmSubmit}
+                disabled={pending}
+                className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {pending ? "Envoi…" : "Oui, valider"}
+              </button>
+            </div>
           </div>
         </div>
       )}
