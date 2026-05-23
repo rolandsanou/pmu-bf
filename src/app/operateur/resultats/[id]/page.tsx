@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isOperatorAuthed } from "@/lib/auth";
+import { decryptId, encryptId } from "@/lib/id-cipher";
 import { formatDateTime, DISCIPLINE_LABEL, formatDistance } from "@/lib/format";
 import ResultForm from "./ResultForm";
 
@@ -13,7 +14,9 @@ export default async function ResultEntryPage({
   params: Promise<{ id: string }>;
 }) {
   if (!(await isOperatorAuthed())) redirect("/operateur/login");
-  const { id } = await params;
+  const { id: token } = await params;
+  const id = decryptId(token);
+  if (!id) notFound();
 
   const course = await prisma.course.findUnique({
     where: { id },
@@ -64,7 +67,7 @@ export default async function ResultEntryPage({
 
         {/* Result form */}
         <ResultForm
-          courseId={course.id}
+          courseId={encryptId(course.id)}
           runners={course.runners.map((r) => ({
             number: r.number,
             name: r.name,

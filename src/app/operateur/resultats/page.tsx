@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isOperatorAuthed } from "@/lib/auth";
+import { encryptId } from "@/lib/id-cipher";
 import { formatDateTime, DISCIPLINE_LABEL } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function ResultatsPage() {
           return (
             <Link
               key={c.id}
-              href={`/operateur/resultats/${c.id}`}
+              href={`/operateur/resultats/${encryptId(c.id)}`}
               className="block rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition"
             >
               <div className="flex items-center justify-between">

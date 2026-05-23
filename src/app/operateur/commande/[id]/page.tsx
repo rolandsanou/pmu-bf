@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isOperatorAuthed } from "@/lib/auth";
+import { decryptId, encryptId } from "@/lib/id-cipher";
 import { cancelOrder, verifyPayment, updateBetPayout } from "@/lib/actions";
 import {
   ORDER_STATUS_COLOR,
@@ -22,7 +23,10 @@ export default async function OperatorOrderPage({
 }) {
   if (!(await isOperatorAuthed())) redirect("/operateur/login");
 
-  const { id } = await params;
+  const { id: token } = await params;
+  const id = decryptId(token);
+  if (!id) notFound();
+
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
@@ -116,7 +120,7 @@ export default async function OperatorOrderPage({
                   </div>
                   {/* Payout entry for won bets */}
                   {won && (
-                    <PayoutInput betId={bet.id} currentPayout={bet.payout} />
+                    <PayoutInput betId={encryptId(bet.id)} currentPayout={bet.payout} />
                   )}
                 </li>
               );
@@ -135,7 +139,7 @@ export default async function OperatorOrderPage({
           <h2 className="font-semibold text-slate-900">Actions</h2>
 
           {order.status === "PENDING_PAYMENT" && (
-            <form action={verifyPayment.bind(null, order.id)}>
+            <form action={verifyPayment.bind(null, encryptId(order.id))}>
               <button className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700">
                 Confirmer le paiement reçu
               </button>
@@ -144,7 +148,7 @@ export default async function OperatorOrderPage({
 
           {order.status === "PAID" && (
             <TicketUpload
-              orderId={order.id}
+              orderId={encryptId(order.id)}
               cta="Marquer placé + envoyer le ticket"
               expectedCount={order.bets.length}
             />
@@ -152,14 +156,14 @@ export default async function OperatorOrderPage({
 
           {order.status === "PLACED" && (
             <TicketUpload
-              orderId={order.id}
+              orderId={encryptId(order.id)}
               cta="Envoyer d'autres photos"
               expectedCount={order.bets.length}
             />
           )}
 
           {canCancel && (
-            <form action={cancelOrder.bind(null, order.id)}>
+            <form action={cancelOrder.bind(null, encryptId(order.id))}>
               <button className="w-full rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">
                 Annuler la commande
               </button>

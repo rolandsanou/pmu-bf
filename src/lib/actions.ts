@@ -11,6 +11,7 @@ import { saveTicketPhoto } from "./storage";
 import type { CreateOrderResult, NewOrderInput } from "./order-types";
 import { parseJournalPdf, type ParsedCourse } from "./journal-parser";
 import { getNextRaceDayCutoff } from "./race-days";
+import { decryptId, encryptId } from "./id-cipher";
 
 export async function createOrder(
   input: NewOrderInput
@@ -29,7 +30,11 @@ export async function createOrder(
   if (!input.items?.length)
     return { ok: false, error: "Aucun pari sélectionné." };
 
-  const offerIds = input.items.map((i) => i.offerId);
+  // Decrypt encrypted offer IDs from the client
+  const offerIds = input.items.map((i) => {
+    const decrypted = decryptId(i.offerId);
+    return decrypted ?? i.offerId; // fallback to raw if not encrypted (shouldn't happen)
+  });
   const offers = await prisma.courseBetOffer.findMany({
     where: { id: { in: offerIds }, active: true },
     include: { betType: true, course: true },
@@ -46,7 +51,8 @@ export async function createOrder(
   let total = 0;
 
   for (const item of input.items) {
-    const offer = offerById.get(item.offerId);
+    const decryptedOfferId = decryptId(item.offerId) ?? item.offerId;
+    const offer = offerById.get(decryptedOfferId);
     if (!offer) return { ok: false, error: "Pari indisponible." };
     if (offer.course.status !== "OPEN" || offer.course.cutoffTime <= now)
       return {
@@ -127,30 +133,36 @@ export async function logoutAction(): Promise<void> {
   redirect("/operateur/login");
 }
 
-export async function verifyPayment(orderId: string): Promise<void> {
+export async function verifyPayment(encryptedOrderId: string): Promise<void> {
   await requireOperator();
+  const orderId = decryptId(encryptedOrderId);
+  if (!orderId) throw new Error("ID invalide.");
   await prisma.order.update({
     where: { id: orderId },
     data: { status: "PAID", paidAt: new Date() },
   });
   revalidatePath("/operateur");
-  revalidatePath(`/operateur/commande/${orderId}`);
+  revalidatePath(`/operateur/commande`);
 }
 
-export async function cancelOrder(orderId: string): Promise<void> {
+export async function cancelOrder(encryptedOrderId: string): Promise<void> {
   await requireOperator();
+  const orderId = decryptId(encryptedOrderId);
+  if (!orderId) throw new Error("ID invalide.");
   await prisma.order.update({
     where: { id: orderId },
     data: { status: "CANCELLED" },
   });
   revalidatePath("/operateur");
-  revalidatePath(`/operateur/commande/${orderId}`);
+  revalidatePath(`/operateur/commande`);
 }
 
 export async function placeOrderWithPhoto(formData: FormData): Promise<void> {
   await requireOperator();
-  const orderId = String(formData.get("orderId") || "");
-  if (!orderId) throw new Error("Commande introuvable.");
+  const encryptedId = String(formData.get("orderId") || "");
+  if (!encryptedId) throw new Error("Commande introuvable.");
+  const orderId = decryptId(encryptedId);
+  if (!orderId) throw new Error("ID invalide.");
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error("Commande introuvable.");
@@ -179,8 +191,8 @@ export async function placeOrderWithPhoto(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/operateur");
-  revalidatePath(`/operateur/commande/${orderId}`);
-  redirect(`/operateur/commande/${orderId}`);
+  revalidatePath(`/operateur/commande`);
+  redirect(`/operateur/commande/${encryptedId}`);
 }
 
 // ── Result entry ──────────────────────────────────────────────────────────
@@ -189,10 +201,13 @@ export async function placeOrderWithPhoto(formData: FormData): Promise<void> {
  * Settle a course: store the top-5 finishers and auto-grade every bet.
  */
 export async function settleResults(
-  courseId: string,
+  encryptedCourseId: string,
   finishers: number[]
 ): Promise<{ ok: boolean; error?: string }> {
   await requireOperator();
+
+  const courseId = decryptId(encryptedCourseId);
+  if (!courseId) return { ok: false, error: "ID invalide." };
 
   if (finishers.length !== 5) return { ok: false, error: "Il faut 5 arrivants." };
   if (new Set(finishers).size !== 5)
@@ -257,19 +272,18 @@ export async function settleResults(
  * Set the payout amount for an individual bet (operator enters manually).
  */
 export async function updateBetPayout(
-  betId: string,
+  encryptedBetId: string,
   payout: number
 ): Promise<void> {
   await requireOperator();
+  const betId = decryptId(encryptedBetId);
+  if (!betId) throw new Error("ID invalide.");
   if (payout < 0) throw new Error("Le gain ne peut pas être négatif.");
   await prisma.bet.update({
     where: { id: betId },
     data: { payout },
   });
-  const bet = await prisma.bet.findUnique({ where: { id: betId } });
-  if (bet) {
-    revalidatePath(`/operateur/commande/${bet.orderId}`);
-  }
+  revalidatePath(`/operateur/commande`);
 }
 
 // ── Journal PDF import ────────────────────────────────────────────────

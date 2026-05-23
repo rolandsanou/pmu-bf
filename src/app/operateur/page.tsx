@@ -4,6 +4,7 @@ import type { OrderStatus, CourseStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getOperator } from "@/lib/auth";
 import { logoutAction, verifyPayment } from "@/lib/actions";
+import { encryptId, decryptId } from "@/lib/id-cipher";
 import {
   ORDER_STATUS_COLOR,
   ORDER_STATUS_LABEL,
@@ -54,7 +55,7 @@ export default async function DashboardPage({
   const operator = await getOperator();
   if (!operator) redirect("/operateur/login");
 
-  const { status, course: courseFilter } = await searchParams;
+  const { status, course: courseToken } = await searchParams;
 
   // ── Fetch all courses (most recent first) ──────────────────────
   const courses = await prisma.course.findMany({
@@ -66,8 +67,9 @@ export default async function DashboardPage({
     take: 20,
   });
 
-  // Determine active course filter
-  const activeCourseId = courseFilter || (courses.length > 0 ? courses[0].id : null);
+  // Decrypt course ID from URL token
+  const decryptedCourseId = courseToken ? decryptId(courseToken) : null;
+  const activeCourseId = decryptedCourseId || (courses.length > 0 ? courses[0].id : null);
   const activeCourse = courses.find((c) => c.id === activeCourseId) ?? courses[0] ?? null;
 
   // ── Orders query: filter by course if a course is selected ─────
@@ -136,7 +138,7 @@ export default async function DashboardPage({
                 return (
                   <Link
                     key={c.id}
-                    href={`/operateur?course=${c.id}${status ? `&status=${status}` : ""}`}
+                    href={`/operateur?course=${encryptId(c.id)}${status ? `&status=${status}` : ""}`}
                     className={`shrink-0 rounded-xl border px-4 py-3 transition ${
                       isActive
                         ? "border-slate-900 bg-slate-900 text-white shadow-md"
@@ -206,7 +208,7 @@ export default async function DashboardPage({
                 <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                   {activeCourse.status !== "SETTLED" && (
                     <Link
-                      href={`/operateur/resultats/${activeCourse.id}`}
+                      href={`/operateur/resultats/${encryptId(activeCourse.id)}`}
                       className="text-xs font-medium text-violet-600 hover:text-violet-800 transition"
                     >
                       Saisir résultats
@@ -214,7 +216,7 @@ export default async function DashboardPage({
                   )}
                   {activeCourse.status === "SETTLED" && (
                     <Link
-                      href={`/operateur/resultats/${activeCourse.id}`}
+                      href={`/operateur/resultats/${encryptId(activeCourse.id)}`}
                       className="text-xs font-medium text-slate-500 hover:text-slate-700 transition"
                     >
                       Voir résultats
@@ -229,7 +231,7 @@ export default async function DashboardPage({
         {/* ── Urgent alert: pending payments ──────────────────────── */}
         {pendingCount > 0 && (
           <Link
-            href={`/operateur?status=PENDING_PAYMENT${activeCourseId ? `&course=${activeCourseId}` : ""}`}
+            href={`/operateur?status=PENDING_PAYMENT${activeCourseId ? `&course=${encryptId(activeCourseId)}` : ""}`}
             className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 transition hover:bg-amber-100"
           >
             <div className="flex items-center gap-3">
@@ -317,7 +319,7 @@ export default async function DashboardPage({
             const isActive =
               (active ?? "ALL") === f.key ||
               (!active && f.key === "ALL");
-            const courseParam = activeCourseId ? `&course=${activeCourseId}` : "";
+            const courseParam = activeCourseId ? `&course=${encryptId(activeCourseId)}` : "";
             return (
               <Link
                 key={f.key}
@@ -360,7 +362,7 @@ export default async function DashboardPage({
               >
                 <div className="flex items-center gap-3 p-4">
                   <Link
-                    href={`/operateur/commande/${order.id}`}
+                    href={`/operateur/commande/${encryptId(order.id)}`}
                     className="min-w-0 flex-1"
                   >
                     <div className="flex items-center gap-2">
@@ -388,7 +390,7 @@ export default async function DashboardPage({
                       {formatFCFA(order.total)}
                     </p>
                     {isPending && (
-                      <form action={verifyPayment.bind(null, order.id)}>
+                      <form action={verifyPayment.bind(null, encryptId(order.id))}>
                         <button className="mt-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition">
                           Valider
                         </button>

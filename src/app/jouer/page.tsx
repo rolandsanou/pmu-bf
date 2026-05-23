@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DISCIPLINE_LABEL, formatDistance, formatTime } from "@/lib/format";
 import { getNextRaceDay, isRaceDay, RACE_DAY_NAMES } from "@/lib/race-days";
+import { encryptId } from "@/lib/id-cipher";
 import BetBuilder, { type ClientCourse } from "./BetBuilder";
 
 export const dynamic = "force-dynamic";
@@ -81,7 +82,7 @@ export default async function JouerPage() {
     })),
     formules: c.offers
       .map((o) => ({
-        offerId: o.id,
+        offerId: encryptId(o.id),
         horsesToSelect: o.betType.horsesToSelect,
         price: o.price,
         hint: o.betType.description,
