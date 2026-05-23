@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DISCIPLINE_LABEL, formatDistance, formatTime } from "@/lib/format";
-import { getNextRaceDay, isRaceDay, RACE_DAY_NAMES, getBettingOpensAt, BETTING_OPENS_HOUR } from "@/lib/race-days";
+import { getNextRaceDay, RACE_DAY_NAMES, getBettingOpensAt } from "@/lib/race-days";
 import { encryptId } from "@/lib/id-cipher";
 import BetBuilder, { type ClientCourse } from "./BetBuilder";
 
@@ -12,8 +12,18 @@ const businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Pari Express";
 export default async function JouerPage() {
   const now = new Date();
 
-  // --- Race-day gate: only show betting on configured race days ----------
-  if (!isRaceDay(now)) {
+  // Fetch all OPEN courses whose cutoff hasn't passed yet (includes future race days)
+  const courses = await prisma.course.findMany({
+    where: { status: "OPEN", cutoffTime: { gt: now } },
+    orderBy: { startTime: "asc" },
+    include: {
+      runners: { orderBy: { number: "asc" } },
+      offers: { where: { active: true }, include: { betType: true } },
+    },
+  });
+
+  // No open courses → show "Pas de course" with next race day info
+  if (courses.length === 0) {
     const next = getNextRaceDay(now);
     const dayName = RACE_DAY_NAMES[next.getUTCDay()];
     const formatted = new Intl.DateTimeFormat("fr-FR", {
@@ -34,7 +44,7 @@ export default async function JouerPage() {
         <div className="max-w-2xl w-full mx-auto px-4 py-12 text-center">
           <p className="text-5xl">📅</p>
           <h1 className="mt-4 text-xl font-bold text-slate-900">
-            Pas de course aujourd&apos;hui
+            Pas de course pour le moment
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             Les paris sont disponibles le <strong>vendredi</strong> et le{" "}
@@ -54,16 +64,7 @@ export default async function JouerPage() {
     );
   }
 
-  // --- Normal flow: show available courses --------------------------------
-  const courses = await prisma.course.findMany({
-    where: { status: "OPEN", cutoffTime: { gt: now } },
-    orderBy: { startTime: "asc" },
-    include: {
-      runners: { orderBy: { number: "asc" } },
-      offers: { where: { active: true }, include: { betType: true } },
-    },
-  });
-
+  // Build client-side course data (may include preview courses)
   const clientCourses: ClientCourse[] = courses.map((c) => ({
     id: c.id,
     hippodrome: c.hippodrome,
@@ -103,13 +104,7 @@ export default async function JouerPage() {
       </header>
 
       <div className="max-w-2xl w-full mx-auto px-4 py-6">
-        {clientCourses.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-            Aucune course ouverte pour le moment. Revenez plus tard.
-          </div>
-        ) : (
-          <BetBuilder courses={clientCourses} />
-        )}
+        <BetBuilder courses={clientCourses} />
       </div>
     </main>
   );
