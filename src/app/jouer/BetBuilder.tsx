@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createOrder } from "@/lib/actions";
 import { formatFCFA } from "@/lib/format";
@@ -34,6 +34,7 @@ export type ClientCourse = {
   subtitle: string;
   startLabel: string;
   cutoffISO: string;
+  bettingOpensISO: string;
   runnerCount: number;
   runners: ClientRunner[];
   formules: ClientFormule[];
@@ -75,10 +76,21 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
   const greeting = useMemo(() => getGreeting(), []);
 
+  // Re-check every 30s so the preview unlocks automatically at opening time
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const course = courses.find((c) => c.id === selectedCourseId) ?? first;
+  const bettingOpen = course
+    ? now >= new Date(course.bettingOpensISO) && now < new Date(course.cutoffISO)
+    : false;
+  const opensAt = course ? new Date(course.bettingOpensISO) : null;
   const formule =
     course?.formules.find((f) => f.offerId === offerId) ?? course?.formules[0] ?? null;
   const need = formule?.horsesToSelect ?? 0;
@@ -226,13 +238,32 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
         </div>
       </div>
 
+      {/* Preview banner when betting not yet open */}
+      {!bettingOpen && opensAt && now < opensAt && (
+        <div className="mt-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 text-center">
+          <p className="text-3xl">🔒</p>
+          <h2 className="mt-1 text-lg font-bold text-blue-800">
+            Aperçu de la course
+          </h2>
+          <p className="mt-1 text-sm text-blue-600">
+            Les paris ouvrent à{" "}
+            <strong>
+              {opensAt.getUTCHours()}h{String(opensAt.getUTCMinutes()).padStart(2, "0")}
+            </strong>
+            . Consultez les partants en attendant !
+          </p>
+        </div>
+      )}
+
       {/* Composer */}
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="font-bold text-slate-900">Report 4+1</h2>
         </div>
         <p className="mt-0.5 text-xs text-slate-500">
-          Choisissez une formule, puis vos chevaux dans l&apos;ordre souhaité.
+          {bettingOpen
+            ? "Choisissez une formule, puis vos chevaux dans l'ordre souhaité."
+            : "Découvrez les partants. Les sélections seront possibles à l'ouverture des paris."}
         </p>
 
         {/* Formule selector */}
@@ -243,12 +274,13 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
               <button
                 key={f.offerId}
                 type="button"
-                onClick={() => selectFormule(f.offerId)}
+                onClick={() => bettingOpen && selectFormule(f.offerId)}
+                disabled={!bettingOpen}
                 className={`rounded-lg border px-3 py-2 text-left transition ${
                   active
                     ? "border-emerald-600 bg-emerald-50"
                     : "border-slate-300 bg-white hover:bg-slate-50"
-                }`}
+                } ${!bettingOpen ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <span className="block text-sm font-semibold text-slate-900">
                   {f.horsesToSelect} chevaux
@@ -278,12 +310,13 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
                 return (
                   <button
                     key={r.number}
-                    onClick={() => toggleHorse(r.number)}
+                    onClick={() => bettingOpen && toggleHorse(r.number)}
+                    disabled={!bettingOpen}
                     className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
                       picked
                         ? "border-emerald-600 bg-emerald-50"
                         : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
+                    } ${!bettingOpen ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span
@@ -309,10 +342,12 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
 
             <button
               onClick={addToTicket}
-              disabled={horses.length !== need}
+              disabled={!bettingOpen || horses.length !== need}
               className="mt-3 w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
             >
-              Ajouter au ticket — {formatFCFA(formule.price)}
+              {bettingOpen
+                ? `Ajouter au ticket — ${formatFCFA(formule.price)}`
+                : "Paris pas encore ouverts"}
             </button>
             {flash && (
               <p className="mt-2 text-center text-sm font-medium text-emerald-700">

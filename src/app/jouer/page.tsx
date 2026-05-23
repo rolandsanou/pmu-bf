@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DISCIPLINE_LABEL, formatDistance, formatTime } from "@/lib/format";
-import { getNextRaceDay, isRaceDay, RACE_DAY_NAMES } from "@/lib/race-days";
+import { getNextRaceDay, isRaceDay, RACE_DAY_NAMES, getBettingOpensAt, BETTING_OPENS_HOUR } from "@/lib/race-days";
 import { encryptId } from "@/lib/id-cipher";
 import BetBuilder, { type ClientCourse } from "./BetBuilder";
 
@@ -74,6 +74,7 @@ export default async function JouerPage() {
     )} · ${c.runnerCount} partants`,
     startLabel: formatTime(c.startTime),
     cutoffISO: c.cutoffTime.toISOString(),
+    bettingOpensISO: getBettingOpensAt(c.date).toISOString(),
     runnerCount: c.runnerCount,
     runners: c.runners.map((r) => ({
       number: r.number,

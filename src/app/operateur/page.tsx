@@ -285,10 +285,10 @@ export default async function DashboardPage({
 
         {/* ── Fee breakdown ─────────────────────────────────────── */}
         {(totalTransactionFees > 0 || totalPlatformFees > 0) && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl bg-white border border-slate-200 px-4 py-3">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Frais transaction (1%)
+                Frais transaction
               </p>
               <p className="mt-1 text-lg font-bold text-orange-600">
                 {formatFCFA(totalTransactionFees)}
@@ -296,10 +296,18 @@ export default async function DashboardPage({
             </div>
             <div className="rounded-xl bg-white border border-slate-200 px-4 py-3">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Frais plateforme (15F)
+                Frais plateforme
               </p>
               <p className="mt-1 text-lg font-bold text-orange-600">
                 {formatFCFA(totalPlatformFees)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white border border-orange-200 px-4 py-3">
+              <p className="text-xs font-medium text-orange-500 uppercase tracking-wide">
+                Total frais
+              </p>
+              <p className="mt-1 text-lg font-bold text-orange-700">
+                {formatFCFA(totalTransactionFees + totalPlatformFees)}
               </p>
             </div>
           </div>

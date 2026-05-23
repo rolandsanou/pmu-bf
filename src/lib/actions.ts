@@ -10,7 +10,7 @@ import { notifyCustomerTicketPlaced, notifyOperatorNewOrder } from "./notify";
 import { saveTicketPhoto } from "./storage";
 import type { CreateOrderResult, NewOrderInput } from "./order-types";
 import { parseJournalPdf, type ParsedCourse } from "./journal-parser";
-import { getNextRaceDayCutoff } from "./race-days";
+import { getNextRaceDayCutoff, getBettingOpensAt } from "./race-days";
 import { decryptId, encryptId } from "./id-cipher";
 
 export async function createOrder(
@@ -58,6 +58,12 @@ export async function createOrder(
       return {
         ok: false,
         error: `Les paris sont fermés pour ${offer.course.hippodrome} C${offer.course.number}.`,
+      };
+    const opensAt = getBettingOpensAt(offer.course.date);
+    if (now < opensAt)
+      return {
+        ok: false,
+        error: `Les paris ne sont pas encore ouverts pour ${offer.course.hippodrome} C${offer.course.number}. Ouverture à ${opensAt.getUTCHours()}h.`,
       };
 
     const need = offer.betType.horsesToSelect;

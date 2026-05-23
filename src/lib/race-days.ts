@@ -3,11 +3,21 @@
  *
  * NEXT_PUBLIC_RACE_DAYS = comma-separated JS day-of-week numbers (0=Sun … 6=Sat).
  * Default: "5,0" = Friday + Sunday.
+ *
+ * NEXT_PUBLIC_BETTING_OPENS_HOUR = hour (UTC) when betting opens (default: 19 = 7PM).
+ * NEXT_PUBLIC_BETTING_CUTOFF_HOUR = hour (UTC) when betting closes (default: 23 = 11PM).
  */
 
 const raw = process.env.NEXT_PUBLIC_RACE_DAYS || "5,0";
 const RACE_DAYS: Set<number> = new Set(
   raw.split(",").map((s) => Number(s.trim())).filter((n) => n >= 0 && n <= 6)
+);
+
+export const BETTING_OPENS_HOUR = Number(
+  process.env.NEXT_PUBLIC_BETTING_OPENS_HOUR || "19"
+);
+export const BETTING_CUTOFF_HOUR = Number(
+  process.env.NEXT_PUBLIC_BETTING_CUTOFF_HOUR || "23"
 );
 
 /** French day names indexed by JS getUTCDay() (0 = dimanche). */
@@ -43,13 +53,13 @@ export function getNextRaceDay(date: Date): Date {
 }
 
 /**
- * Return the next race day at 18:00 UTC whose cutoff is still in the future.
- * Used by the seed script to create the next available course.
+ * Return the next race day at BETTING_CUTOFF_HOUR UTC whose cutoff is still
+ * in the future. Used by importCourse to set the betting deadline.
  */
 export function getNextRaceDayCutoff(now: Date): Date {
-  // Check today first: if it's a race day and 18:00 hasn't passed, use today.
+  // Check today first: if it's a race day and cutoff hasn't passed, use today.
   const todayCutoff = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 18, 0, 0)
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), BETTING_CUTOFF_HOUR, 0, 0)
   );
   if (RACE_DAYS.has(now.getUTCDay()) && todayCutoff.getTime() > now.getTime()) {
     return todayCutoff;
@@ -57,6 +67,22 @@ export function getNextRaceDayCutoff(now: Date): Date {
   // Otherwise advance to the next race day.
   const next = getNextRaceDay(now);
   return new Date(
-    Date.UTC(next.getUTCFullYear(), next.getUTCMonth(), next.getUTCDate(), 18, 0, 0)
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth(), next.getUTCDate(), BETTING_CUTOFF_HOUR, 0, 0)
+  );
+}
+
+/**
+ * Compute the betting-opens timestamp for a given course date.
+ */
+export function getBettingOpensAt(courseDate: Date): Date {
+  return new Date(
+    Date.UTC(
+      courseDate.getUTCFullYear(),
+      courseDate.getUTCMonth(),
+      courseDate.getUTCDate(),
+      BETTING_OPENS_HOUR,
+      0,
+      0
+    )
   );
 }
