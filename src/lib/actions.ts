@@ -80,6 +80,12 @@ export async function createOrder(
     total += offer.price;
   }
 
+  // Calculate fees
+  const subtotal = total;
+  const transactionFee = Math.ceil(subtotal * 0.01); // 1% rounded up
+  const platformFee = 15; // fixed 15 FCFA
+  const grandTotal = subtotal + transactionFee + platformFee;
+
   // Create the order, retrying on the rare order-code collision.
   let created;
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -93,7 +99,10 @@ export async function createOrder(
           paymentPhone: paymentPhone || null,
           paymentRef,
           paymentNetwork: input.paymentNetwork,
-          total,
+          subtotal,
+          transactionFee,
+          platformFee,
+          total: grandTotal,
           bets: { create: betsData },
         },
       });
@@ -114,7 +123,7 @@ export async function createOrder(
     code: created.code,
     customerName,
     customerPhone,
-    total,
+    total: grandTotal,
     betCount: betsData.length,
   });
 

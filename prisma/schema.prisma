@@ -97,7 +97,10 @@ model Order {
   code           String          @unique // short human-friendly code
   customerName   String
   customerPhone  String
-  total          Int
+  total          Int             // grand total = subtotal + fees
+  subtotal       Int             @default(0) // sum of bet prices before fees
+  transactionFee Int             @default(0) // 1% of subtotal
+  platformFee    Int             @default(0) // fixed 15 FCFA
   status         OrderStatus     @default(PENDING_PAYMENT)
   paymentRef     String? // transaction ID typed by the customer
   paymentPhone   String? // number the customer paid from

@@ -72,7 +72,11 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
   const formule =
     course?.formules.find((f) => f.offerId === offerId) ?? course?.formules[0] ?? null;
   const need = formule?.horsesToSelect ?? 0;
-  const total = cart.reduce((sum, i) => sum + i.price, 0);
+  const subtotal = cart.reduce((sum, i) => sum + i.price, 0);
+  const transactionFee = Math.ceil(subtotal * 0.01);
+  const platformFee = subtotal > 0 ? 15 : 0;
+  const fees = transactionFee + platformFee;
+  const total = subtotal + fees;
 
   function courseTitle(c: ClientCourse) {
     return c.prizeName ?? `${c.hippodrome} C${c.number}`;
@@ -323,9 +327,19 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
               </li>
             ))}
           </ul>
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="font-semibold">Total</span>
-            <span className="font-bold text-emerald-700">{formatFCFA(total)}</span>
+          <div className="mt-3 border-t border-slate-100 pt-3 space-y-1">
+            <div className="flex items-center justify-between text-sm text-slate-500">
+              <span>Sous-total</span>
+              <span>{formatFCFA(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm text-slate-500">
+              <span>Frais</span>
+              <span>{formatFCFA(fees)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-semibold">Total</span>
+              <span className="font-bold text-emerald-700">{formatFCFA(total)}</span>
+            </div>
           </div>
         </div>
       )}

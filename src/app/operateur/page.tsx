@@ -100,9 +100,11 @@ export default async function DashboardPage({
   };
   const allOrders = await prisma.order.findMany({
     where: statsWhere,
-    select: { total: true, status: true },
+    select: { total: true, subtotal: true, transactionFee: true, platformFee: true, status: true },
   });
   const totalSales = allOrders.reduce((sum, o) => sum + o.total, 0);
+  const totalTransactionFees = allOrders.reduce((sum, o) => sum + o.transactionFee, 0);
+  const totalPlatformFees = allOrders.reduce((sum, o) => sum + o.platformFee, 0);
   const paidOrders = allOrders.filter(
     (o) => o.status !== "PENDING_PAYMENT"
   );
@@ -280,6 +282,28 @@ export default async function DashboardPage({
             </p>
           </div>
         </div>
+
+        {/* ── Fee breakdown ─────────────────────────────────────── */}
+        {(totalTransactionFees > 0 || totalPlatformFees > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white border border-slate-200 px-4 py-3">
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                Frais transaction (1%)
+              </p>
+              <p className="mt-1 text-lg font-bold text-orange-600">
+                {formatFCFA(totalTransactionFees)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white border border-slate-200 px-4 py-3">
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                Frais plateforme (15F)
+              </p>
+              <p className="mt-1 text-lg font-bold text-orange-600">
+                {formatFCFA(totalPlatformFees)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Quick actions (secondary, not primary) ─────────────── */}
         <div className="flex gap-2">

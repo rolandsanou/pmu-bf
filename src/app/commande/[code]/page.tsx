@@ -290,11 +290,25 @@ export default async function OrderPage({
               );
             })}
           </ul>
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="font-semibold">Total misé</span>
-            <span className="font-bold text-emerald-700">
-              {formatFCFA(order.total)}
-            </span>
+          <div className="mt-3 border-t border-slate-100 pt-3 space-y-1">
+            {order.subtotal > 0 && order.subtotal !== order.total && (
+              <>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>Sous-total</span>
+                  <span>{formatFCFA(order.subtotal)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>Frais</span>
+                  <span>{formatFCFA(order.transactionFee + order.platformFee)}</span>
+                </div>
+              </>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">Total</span>
+              <span className="font-bold text-emerald-700">
+                {formatFCFA(order.total)}
+              </span>
+            </div>
           </div>
           {isSettled && totalPayout > 0 && (
             <div className="flex items-center justify-between border-t border-emerald-100 pt-3 mt-2">
