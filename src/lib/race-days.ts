@@ -4,7 +4,7 @@
  * NEXT_PUBLIC_RACE_DAYS = comma-separated JS day-of-week numbers (0=Sun … 6=Sat).
  * Default: "5,0" = Friday + Sunday.
  *
- * NEXT_PUBLIC_BETTING_OPENS_HOUR = hour (UTC) when betting opens (default: 19 = 7PM).
+ * NEXT_PUBLIC_BETTING_OPENS_HOUR = hour (UTC) when betting opens (default: 7 = 7AM).
  * NEXT_PUBLIC_BETTING_CUTOFF_HOUR = hour (UTC) when betting closes (default: 23 = 11PM).
  */
 
@@ -14,7 +14,7 @@ const RACE_DAYS: Set<number> = new Set(
 );
 
 export const BETTING_OPENS_HOUR = Number(
-  process.env.NEXT_PUBLIC_BETTING_OPENS_HOUR || "19"
+  process.env.NEXT_PUBLIC_BETTING_OPENS_HOUR || "7"
 );
 export const BETTING_CUTOFF_HOUR = Number(
   process.env.NEXT_PUBLIC_BETTING_CUTOFF_HOUR || "23"
