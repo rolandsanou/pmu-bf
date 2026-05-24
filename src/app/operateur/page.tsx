@@ -13,6 +13,8 @@ import {
   formatDateTime,
   formatCourseLabel,
 } from "@/lib/format";
+import { getSiteSettings } from "@/lib/actions";
+import BettingToggle from "./BettingToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,7 @@ export default async function DashboardPage({
   const operator = await getOperator();
   if (!operator) redirect("/operateur/login");
 
+  const siteSettings = await getSiteSettings();
   const { status, course: courseToken } = await searchParams;
 
   // ── Fetch all courses (most recent first) ──────────────────────
@@ -313,8 +316,14 @@ export default async function DashboardPage({
           </div>
         )}
 
+        {/* ── Betting toggle ────────────────────────────────────── */}
+        <BettingToggle
+          closed={siteSettings.bettingClosed}
+          currentMessage={siteSettings.closedMessage}
+        />
+
         {/* ── Quick actions (secondary, not primary) ─────────────── */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link
             href="/operateur/importer"
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"

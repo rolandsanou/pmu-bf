@@ -21,6 +21,11 @@ export async function createOrder(
   const paymentPhone = input.paymentPhone?.trim();
   const paymentRef = input.paymentRef?.trim();
 
+  // Check global betting pause
+  const settings = await prisma.siteSettings.findUnique({ where: { id: "singleton" } });
+  if (settings?.bettingClosed)
+    return { ok: false, error: settings.closedMessage || "Les paris sont suspendus." };
+
   if (!customerName) return { ok: false, error: "Le nom est requis." };
   if (!customerPhone) return { ok: false, error: "Le téléphone est requis." };
   if (!paymentRef)
@@ -444,4 +449,28 @@ function factorial(n: number): number {
   let r = 1;
   for (let i = 2; i <= n; i++) r *= i;
   return r;
+}
+
+// ── Site settings (betting pause) ────────────────────────────────
+
+/** Read the singleton site settings row (creates it if missing). */
+export async function getSiteSettings() {
+  const row = await prisma.siteSettings.findUnique({ where: { id: "singleton" } });
+  if (row) return row;
+  return prisma.siteSettings.create({ data: { id: "singleton" } });
+}
+
+/** Operator toggles the betting-closed state with a custom message. */
+export async function toggleBettingClosed(
+  closed: boolean,
+  message: string
+): Promise<void> {
+  await requireOperator();
+  await prisma.siteSettings.upsert({
+    where: { id: "singleton" },
+    update: { bettingClosed: closed, closedMessage: message },
+    create: { id: "singleton", bettingClosed: closed, closedMessage: message },
+  });
+  revalidatePath("/jouer");
+  revalidatePath("/operateur");
 }

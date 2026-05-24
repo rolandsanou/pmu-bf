@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { DISCIPLINE_LABEL, formatDistance, formatTime } from "@/lib/format";
 import { getNextRaceDay, RACE_DAY_NAMES } from "@/lib/race-days";
 import { encryptId } from "@/lib/id-cipher";
+import { getSiteSettings } from "@/lib/actions";
 import BetBuilder, { type ClientCourse } from "./BetBuilder";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,40 @@ const businessName = process.env.NEXT_PUBLIC_BUSINESS_NAME || "Pari Express";
 
 export default async function JouerPage() {
   const now = new Date();
+
+  // Check global betting pause
+  const settings = await getSiteSettings();
+  if (settings.bettingClosed) {
+    return (
+      <main className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <span className="font-bold text-slate-900">🏇 {businessName}</span>
+            <Link href="/suivi" className="text-sm text-emerald-700 font-medium">
+              Suivre une commande
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-2xl w-full mx-auto px-4 py-12 text-center">
+          <p className="text-5xl">⏸️</p>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">
+            Paris suspendus
+          </h1>
+          {settings.closedMessage && (
+            <p className="mt-3 text-base text-slate-600 whitespace-pre-line">
+              {settings.closedMessage}
+            </p>
+          )}
+          <Link
+            href="/suivi"
+            className="mt-6 inline-block rounded-lg border border-slate-300 bg-white px-5 py-2.5 font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Suivre une commande existante
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   // Fetch all OPEN courses whose cutoff hasn't passed yet (includes future race days)
   const courses = await prisma.course.findMany({

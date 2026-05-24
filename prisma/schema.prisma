@@ -180,3 +180,10 @@ model OperatorUser {
   displayName  String?
   createdAt    DateTime @default(now())
 }
+
+// Single-row table for global site settings (betting pause, etc.).
+model SiteSettings {
+  id            String  @id @default("singleton")
+  bettingClosed Boolean @default(false)
+  closedMessage String  @default("")
+}
