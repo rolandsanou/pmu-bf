@@ -10,7 +10,7 @@ import { notifyCustomerTicketPlaced, notifyOperatorNewOrder } from "./notify";
 import { saveTicketPhoto } from "./storage";
 import type { CreateOrderResult, NewOrderInput } from "./order-types";
 import { parseJournalPdf, type ParsedCourse } from "./journal-parser";
-import { getNextRaceDayCutoff, getBettingOpensAt } from "./race-days";
+import { getNextRaceDayCutoff } from "./race-days";
 import { decryptId, encryptId } from "./id-cipher";
 
 export async function createOrder(
@@ -59,11 +59,10 @@ export async function createOrder(
         ok: false,
         error: `Les paris sont fermés pour ${offer.course.hippodrome} C${offer.course.number}.`,
       };
-    const opensAt = getBettingOpensAt(offer.course.date);
-    if (now < opensAt)
+    if (offer.course.bettingOpensAt && now < offer.course.bettingOpensAt)
       return {
         ok: false,
-        error: `Les paris ne sont pas encore ouverts pour ${offer.course.hippodrome} C${offer.course.number}. Ouverture à ${opensAt.getUTCHours()}h.`,
+        error: `Les paris ne sont pas encore ouverts pour ${offer.course.hippodrome} C${offer.course.number}. Ouverture à ${offer.course.bettingOpensAt.getUTCHours()}h${String(offer.course.bettingOpensAt.getUTCMinutes()).padStart(2, "0")}.`,
       };
 
     const need = offer.betType.horsesToSelect;
@@ -334,7 +333,7 @@ export async function parseJournal(
 
 /**
  * Create a course from parsed journal data (after operator review).
- * The cutoff is set to the next race day at 18:00 UTC.
+ * The operator sets the betting window and prices manually.
  */
 export async function importCourse(input: {
   hippodrome: string;
@@ -343,6 +342,9 @@ export async function importCourse(input: {
   discipline: "ATTELE" | "MONTE" | "PLAT";
   distanceMeters: number;
   prizeMoney: number;
+  bettingOpensAt: string; // ISO datetime string (GMT)
+  bettingClosesAt: string; // ISO datetime string (GMT)
+  prices: Record<string, number>; // betType code → price override (0 = use default)
   runners: {
     number: number;
     name: string;
@@ -363,15 +365,15 @@ export async function importCourse(input: {
   if (input.runners.length === 0)
     return { ok: false, error: "Il faut au moins un cheval." };
 
-  const now = new Date();
-  const cutoffTime = getNextRaceDayCutoff(now);
-  const startTime = cutoffTime;
+  const opensAt = new Date(input.bettingOpensAt);
+  const closesAt = new Date(input.bettingClosesAt);
+  if (isNaN(opensAt.getTime()) || isNaN(closesAt.getTime()))
+    return { ok: false, error: "Les dates d'ouverture/fermeture sont invalides." };
+  if (closesAt <= opensAt)
+    return { ok: false, error: "L'heure de fermeture doit être après l'ouverture." };
+
   const day = new Date(
-    Date.UTC(
-      cutoffTime.getUTCFullYear(),
-      cutoffTime.getUTCMonth(),
-      cutoffTime.getUTCDate()
-    )
+    Date.UTC(closesAt.getUTCFullYear(), closesAt.getUTCMonth(), closesAt.getUTCDate())
   );
 
   // Create course + runners.
@@ -384,8 +386,9 @@ export async function importCourse(input: {
       distanceMeters: input.distanceMeters,
       prizeMoney: input.prizeMoney || null,
       date: day,
-      startTime,
-      cutoffTime,
+      startTime: closesAt,
+      bettingOpensAt: opensAt,
+      cutoffTime: closesAt,
       runnerCount: input.runners.length,
       status: "OPEN",
       runners: {
@@ -411,11 +414,16 @@ export async function importCourse(input: {
   });
 
   for (const bt of betTypes) {
-    // Price is stored on the BetType offers system — look up from existing offers
-    // or use the standard C(N,5)×300 formula.
-    const n = bt.horsesToSelect;
-    const combos = factorial(n) / (factorial(5) * factorial(n - 5));
-    const price = combos * 300;
+    // Use operator's custom price if set, otherwise default formula.
+    const customPrice = input.prices[bt.code];
+    let price: number;
+    if (customPrice && customPrice > 0) {
+      price = customPrice;
+    } else {
+      const n = bt.horsesToSelect;
+      const combos = factorial(n) / (factorial(5) * factorial(n - 5));
+      price = combos * 300;
+    }
 
     await prisma.courseBetOffer.create({
       data: {

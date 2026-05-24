@@ -19,6 +19,7 @@ model Course {
   nocturne       Boolean          @default(false)
   date           DateTime         @db.Date
   startTime      DateTime
+  bettingOpensAt DateTime? // betting opens at this time (operator sets)
   cutoffTime     DateTime // betting closes at this time
   runnerCount    Int              @default(16) // number of horses (1..runnerCount)
   status         CourseStatus     @default(OPEN)

@@ -34,7 +34,7 @@ export type ClientCourse = {
   subtitle: string;
   startLabel: string;
   cutoffISO: string;
-  bettingOpensISO: string;
+  bettingOpensISO: string | null;
   runnerCount: number;
   runners: ClientRunner[];
   formules: ClientFormule[];
@@ -87,10 +87,10 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
   }, []);
 
   const course = courses.find((c) => c.id === selectedCourseId) ?? first;
+  const opensAt = course?.bettingOpensISO ? new Date(course.bettingOpensISO) : null;
   const bettingOpen = course
-    ? now >= new Date(course.bettingOpensISO) && now < new Date(course.cutoffISO)
+    ? (opensAt ? now >= opensAt : true) && now < new Date(course.cutoffISO)
     : false;
-  const opensAt = course ? new Date(course.bettingOpensISO) : null;
   const formule =
     course?.formules.find((f) => f.offerId === offerId) ?? course?.formules[0] ?? null;
   const need = formule?.horsesToSelect ?? 0;

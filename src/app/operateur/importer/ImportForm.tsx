@@ -1,11 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { parseJournal, importCourse } from "@/lib/actions";
+import { formatFCFA } from "@/lib/format";
 import type { ParsedCourse } from "@/lib/journal-parser";
 
 type Runner = ParsedCourse["runners"][number];
+
+/** Default price = C(n,5) × 300 */
+function defaultPrice(n: number): number {
+  const f = (x: number) => { let r = 1; for (let i = 2; i <= x; i++) r *= i; return r; };
+  return (f(n) / (f(5) * f(n - 5))) * 300;
+}
+
+/** Format a Date to "YYYY-MM-DDThh:mm" for datetime-local inputs (in UTC) */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+const FORMULES = [
+  { code: "R41_5", horses: 5, label: "5 chevaux" },
+  { code: "R41_6", horses: 6, label: "6 chevaux" },
+  { code: "R41_7", horses: 7, label: "7 chevaux" },
+  { code: "R41_8", horses: 8, label: "8 chevaux" },
+];
 
 export default function ImportForm() {
   const router = useRouter();
@@ -25,6 +45,32 @@ export default function ImportForm() {
   const [runners, setRunners] = useState<Runner[]>([]);
   const [rawText, setRawText] = useState("");
   const [showRaw, setShowRaw] = useState(false);
+
+  // Betting window (operator sets manually, in GMT/UTC)
+  const [bettingOpens, setBettingOpens] = useState("");
+  const [bettingCloses, setBettingCloses] = useState("");
+
+  // Prices per formule (0 = use default)
+  const [prices, setPrices] = useState<Record<string, number>>({});
+
+  // Pre-fill reasonable defaults for opens/closes on mount
+  useEffect(() => {
+    if (!bettingOpens) {
+      // Default: tomorrow at 07:00 GMT
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + 1);
+      d.setUTCHours(7, 0, 0, 0);
+      setBettingOpens(toLocalInput(d));
+    }
+    if (!bettingCloses) {
+      // Default: tomorrow at 13:00 GMT
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + 1);
+      d.setUTCHours(13, 0, 0, 0);
+      setBettingCloses(toLocalInput(d));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -97,6 +143,10 @@ export default function ImportForm() {
       setError("Ajoutez au moins un cheval.");
       return;
     }
+    if (!bettingOpens || !bettingCloses) {
+      setError("Les horaires d'ouverture et de fermeture des paris sont requis.");
+      return;
+    }
 
     startTransition(async () => {
       const res = await importCourse({
@@ -106,6 +156,9 @@ export default function ImportForm() {
         discipline,
         distanceMeters: distance,
         prizeMoney,
+        bettingOpensAt: new Date(bettingOpens + ":00Z").toISOString(),
+        bettingClosesAt: new Date(bettingCloses + ":00Z").toISOString(),
+        prices,
         runners,
       });
       if (!res.ok) {
@@ -270,6 +323,68 @@ export default function ImportForm() {
               />
             </label>
           </div>
+        </div>
+      </div>
+
+      {/* Betting window */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <h2 className="font-semibold text-blue-900">Horaires des paris (GMT)</h2>
+        <p className="text-xs text-blue-600 mb-3">
+          Définissez quand les clients peuvent parier sur cette course.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-sm">
+            <span className="text-blue-700 font-medium">Ouverture</span>
+            <input
+              type="datetime-local"
+              value={bettingOpens}
+              onChange={(e) => setBettingOpens(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-blue-300 px-3 py-2"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-blue-700 font-medium">Fermeture</span>
+            <input
+              type="datetime-local"
+              value={bettingCloses}
+              onChange={(e) => setBettingCloses(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-blue-300 px-3 py-2"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Prices per formule */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <h2 className="font-semibold text-amber-900">Tarifs des formules</h2>
+        <p className="text-xs text-amber-600 mb-3">
+          Laissez vide ou à 0 pour garder le prix par défaut.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {FORMULES.map((f) => {
+            const def = defaultPrice(f.horses);
+            return (
+              <label key={f.code} className="text-sm">
+                <span className="text-amber-800 font-medium">{f.label}</span>
+                <span className="ml-1 text-xs text-amber-500">
+                  (défaut : {formatFCFA(def)})
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={prices[f.code] || ""}
+                  onChange={(e) =>
+                    setPrices((p) => ({
+                      ...p,
+                      [f.code]: Number(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder={String(def)}
+                  className="mt-1 w-full rounded-lg border border-amber-300 px-3 py-2"
+                />
+              </label>
+            );
+          })}
         </div>
       </div>
 
