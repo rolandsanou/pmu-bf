@@ -365,84 +365,89 @@ export async function importCourse(input: {
 }): Promise<{ ok: true; courseId: string } | { ok: false; error: string }> {
   await requireOperator();
 
-  if (!input.hippodrome.trim())
-    return { ok: false, error: "L'hippodrome est requis." };
-  if (input.runners.length === 0)
-    return { ok: false, error: "Il faut au moins un cheval." };
+  try {
+    if (!input.hippodrome.trim())
+      return { ok: false, error: "L'hippodrome est requis." };
+    if (input.runners.length === 0)
+      return { ok: false, error: "Il faut au moins un cheval." };
 
-  const opensAt = new Date(input.bettingOpensAt);
-  const closesAt = new Date(input.bettingClosesAt);
-  if (isNaN(opensAt.getTime()) || isNaN(closesAt.getTime()))
-    return { ok: false, error: "Les dates d'ouverture/fermeture sont invalides." };
-  if (closesAt <= opensAt)
-    return { ok: false, error: "L'heure de fermeture doit être après l'ouverture." };
+    const opensAt = new Date(input.bettingOpensAt);
+    const closesAt = new Date(input.bettingClosesAt);
+    if (isNaN(opensAt.getTime()) || isNaN(closesAt.getTime()))
+      return { ok: false, error: "Les dates d'ouverture/fermeture sont invalides." };
+    if (closesAt <= opensAt)
+      return { ok: false, error: "L'heure de fermeture doit être après l'ouverture." };
 
-  const day = new Date(
-    Date.UTC(closesAt.getUTCFullYear(), closesAt.getUTCMonth(), closesAt.getUTCDate())
-  );
+    const day = new Date(
+      Date.UTC(closesAt.getUTCFullYear(), closesAt.getUTCMonth(), closesAt.getUTCDate())
+    );
 
-  // Create course + runners.
-  const course = await prisma.course.create({
-    data: {
-      hippodrome: input.hippodrome.trim(),
-      number: input.number,
-      prizeName: input.prizeName.trim() || null,
-      discipline: input.discipline,
-      distanceMeters: input.distanceMeters,
-      prizeMoney: input.prizeMoney || null,
-      date: day,
-      startTime: closesAt,
-      bettingOpensAt: opensAt,
-      cutoffTime: closesAt,
-      runnerCount: input.runners.length,
-      status: "OPEN",
-      runners: {
-        create: input.runners.map((r) => ({
-          number: r.number,
-          name: r.name,
-          driver: r.driver || null,
-          trainer: r.trainer || null,
-          owner: r.owner || null,
-          sexAge: r.sexAge || null,
-          chrono: r.chrono || null,
-          recentForm: r.recentForm || null,
-          gains: r.gains || null,
-          odds: r.odds || null,
-        })),
-      },
-    },
-  });
-
-  // Auto-create the 4 Report 4+1 bet offers (5/6/7/8 chevaux).
-  const betTypes = await prisma.betType.findMany({
-    where: { code: { startsWith: "R41_" }, active: true },
-  });
-
-  for (const bt of betTypes) {
-    // Use operator's custom price if set, otherwise default formula.
-    const customPrice = input.prices[bt.code];
-    let price: number;
-    if (customPrice && customPrice > 0) {
-      price = customPrice;
-    } else {
-      const n = bt.horsesToSelect;
-      const combos = factorial(n) / (factorial(5) * factorial(n - 5));
-      price = combos * 300;
-    }
-
-    await prisma.courseBetOffer.create({
+    // Create course + runners.
+    const course = await prisma.course.create({
       data: {
-        courseId: course.id,
-        betTypeId: bt.id,
-        price,
-        active: true,
+        hippodrome: input.hippodrome.trim(),
+        number: input.number,
+        prizeName: input.prizeName.trim() || null,
+        discipline: input.discipline,
+        distanceMeters: input.distanceMeters,
+        prizeMoney: input.prizeMoney || null,
+        date: day,
+        startTime: closesAt,
+        bettingOpensAt: opensAt,
+        cutoffTime: closesAt,
+        runnerCount: input.runners.length,
+        status: "OPEN",
+        runners: {
+          create: input.runners.map((r) => ({
+            number: r.number,
+            name: r.name,
+            driver: r.driver || null,
+            trainer: r.trainer || null,
+            owner: r.owner || null,
+            sexAge: r.sexAge || null,
+            chrono: r.chrono || null,
+            recentForm: r.recentForm || null,
+            gains: r.gains || null,
+            odds: r.odds || null,
+          })),
+        },
       },
     });
-  }
 
-  revalidatePath("/jouer");
-  revalidatePath("/operateur");
-  return { ok: true, courseId: course.id };
+    // Auto-create the 4 Report 4+1 bet offers (5/6/7/8 chevaux).
+    const betTypes = await prisma.betType.findMany({
+      where: { code: { startsWith: "R41_" }, active: true },
+    });
+
+    for (const bt of betTypes) {
+      // Use operator's custom price if set, otherwise default formula.
+      const customPrice = input.prices?.[bt.code];
+      let price: number;
+      if (customPrice && customPrice > 0) {
+        price = customPrice;
+      } else {
+        const n = bt.horsesToSelect;
+        const combos = factorial(n) / (factorial(5) * factorial(n - 5));
+        price = combos * 300;
+      }
+
+      await prisma.courseBetOffer.create({
+        data: {
+          courseId: course.id,
+          betTypeId: bt.id,
+          price,
+          active: true,
+        },
+      });
+    }
+
+    revalidatePath("/jouer");
+    revalidatePath("/operateur");
+    return { ok: true, courseId: course.id };
+  } catch (e) {
+    console.error("importCourse error:", e);
+    return { ok: false, error: "Erreur lors de la création. Vérifiez les données et réessayez." };
+  }
 }
 
 function factorial(n: number): number {

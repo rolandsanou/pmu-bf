@@ -148,25 +148,34 @@ export default function ImportForm() {
       return;
     }
 
+    // datetime-local gives "YYYY-MM-DDThh:mm" or "YYYY-MM-DDThh:mm:ss"
+    // Append "Z" to treat as UTC (GMT)
+    const opensISO = bettingOpens.endsWith("Z") ? bettingOpens : bettingOpens + "Z";
+    const closesISO = bettingCloses.endsWith("Z") ? bettingCloses : bettingCloses + "Z";
+
     startTransition(async () => {
-      const res = await importCourse({
-        hippodrome,
-        number: courseNumber,
-        prizeName,
-        discipline,
-        distanceMeters: distance,
-        prizeMoney,
-        bettingOpensAt: new Date(bettingOpens + ":00Z").toISOString(),
-        bettingClosesAt: new Date(bettingCloses + ":00Z").toISOString(),
-        prices,
-        runners,
-      });
-      if (!res.ok) {
-        setError(res.error);
-        return;
+      try {
+        const res = await importCourse({
+          hippodrome,
+          number: courseNumber,
+          prizeName,
+          discipline,
+          distanceMeters: distance,
+          prizeMoney,
+          bettingOpensAt: new Date(opensISO).toISOString(),
+          bettingClosesAt: new Date(closesISO).toISOString(),
+          prices,
+          runners,
+        });
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        setStep("done");
+        setTimeout(() => router.push("/operateur"), 2000);
+      } catch {
+        setError("Erreur serveur. Vérifiez les horaires et réessayez.");
       }
-      setStep("done");
-      setTimeout(() => router.push("/operateur"), 2000);
     });
   }
 
