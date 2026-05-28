@@ -173,8 +173,8 @@ export default function ImportForm() {
         }
         setStep("done");
         setTimeout(() => router.push("/operateur"), 2000);
-      } catch {
-        setError("Erreur serveur. Vérifiez les horaires et réessayez.");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur serveur. Vérifiez les horaires et réessayez.");
       }
     });
   }

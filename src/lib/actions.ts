@@ -446,7 +446,9 @@ export async function importCourse(input: {
     return { ok: true, courseId: course.id };
   } catch (e) {
     console.error("importCourse error:", e);
-    return { ok: false, error: "Erreur lors de la création. Vérifiez les données et réessayez." };
+    const msg = e instanceof Error ? e.message : String(e);
+    // Surface the real error so the operator can report / debug it
+    return { ok: false, error: `Erreur : ${msg}` };
   }
 }
 
