@@ -458,6 +458,137 @@ function factorial(n: number): number {
   return r;
 }
 
+// ── Course management (edit / delete / suspend) ─────────────────
+
+/** Delete a course and all its runners, offers, bets. */
+export async function deleteCourse(
+  courseId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireOperator();
+  try {
+    // Check if any orders exist with bets on this course
+    const betCount = await prisma.bet.count({ where: { courseId } });
+    if (betCount > 0) {
+      return {
+        ok: false,
+        error: `Impossible de supprimer : ${betCount} pari(s) déjà enregistré(s) sur cette course.`,
+      };
+    }
+    // Delete offers, runners, then course (cascade should handle it, but be explicit)
+    await prisma.courseBetOffer.deleteMany({ where: { courseId } });
+    await prisma.runner.deleteMany({ where: { courseId } });
+    await prisma.course.delete({ where: { id: courseId } });
+    revalidatePath("/operateur");
+    revalidatePath("/jouer");
+    return { ok: true };
+  } catch (e) {
+    console.error("deleteCourse error:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Erreur : ${msg}` };
+  }
+}
+
+/** Close a course (stop accepting bets). */
+export async function closeCourse(
+  courseId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireOperator();
+  try {
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { status: "CLOSED" },
+    });
+    revalidatePath("/operateur");
+    revalidatePath("/jouer");
+    return { ok: true };
+  } catch (e) {
+    console.error("closeCourse error:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Erreur : ${msg}` };
+  }
+}
+
+/** Reopen a closed course (start accepting bets again). */
+export async function reopenCourse(
+  courseId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireOperator();
+  try {
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { status: "OPEN" },
+    });
+    revalidatePath("/operateur");
+    revalidatePath("/jouer");
+    return { ok: true };
+  } catch (e) {
+    console.error("reopenCourse error:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Erreur : ${msg}` };
+  }
+}
+
+/** Update course details (times, prices, basic info). */
+export async function updateCourse(input: {
+  courseId: string;
+  hippodrome: string;
+  number: number;
+  prizeName: string;
+  bettingOpensAt: string;
+  bettingClosesAt: string;
+  prices: Record<string, number>;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireOperator();
+  try {
+    const opensAt = new Date(input.bettingOpensAt);
+    const closesAt = new Date(input.bettingClosesAt);
+    if (isNaN(opensAt.getTime()) || isNaN(closesAt.getTime()))
+      return { ok: false, error: "Les dates sont invalides." };
+    if (closesAt <= opensAt)
+      return { ok: false, error: "L'heure de fermeture doit être après l'ouverture." };
+
+    const day = new Date(
+      Date.UTC(closesAt.getUTCFullYear(), closesAt.getUTCMonth(), closesAt.getUTCDate())
+    );
+
+    await prisma.course.update({
+      where: { id: input.courseId },
+      data: {
+        hippodrome: input.hippodrome || undefined,
+        number: input.number || undefined,
+        prizeName: input.prizeName || null,
+        date: day,
+        startTime: closesAt,
+        bettingOpensAt: opensAt,
+        cutoffTime: closesAt,
+      },
+    });
+
+    // Update offer prices
+    const offers = await prisma.courseBetOffer.findMany({
+      where: { courseId: input.courseId },
+      include: { betType: true },
+    });
+    for (const offer of offers) {
+      const newPrice = input.prices[offer.betType.code];
+      if (newPrice && newPrice > 0 && newPrice !== offer.price) {
+        await prisma.courseBetOffer.update({
+          where: { id: offer.id },
+          data: { price: newPrice },
+        });
+      }
+    }
+
+    revalidatePath("/operateur");
+    revalidatePath("/jouer");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateCourse error:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Erreur : ${msg}` };
+  }
+}
+
 // ── Site settings (betting pause) ────────────────────────────────
 
 /** Read the singleton site settings row (creates it if missing). */

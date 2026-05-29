@@ -233,7 +233,7 @@ export default function BetBuilder({ courses }: { courses: ClientCourse[] }) {
             </p>
           </div>
           <span className="shrink-0 text-xs text-slate-500">
-            Départ {course.startLabel}
+            {course.startLabel}
           </span>
         </div>
       </div>

@@ -12,9 +12,11 @@ import {
   formatFCFA,
   formatDateTime,
   formatCourseLabel,
+  formatTime,
 } from "@/lib/format";
 import { getSiteSettings } from "@/lib/actions";
 import BettingToggle from "./BettingToggle";
+import CourseActions from "./CourseActions";
 
 export const dynamic = "force-dynamic";
 
@@ -209,8 +211,23 @@ export default async function DashboardPage({
                   )}
                 </div>
 
+                {/* Betting window info */}
+                {activeCourse.bettingOpensAt && (
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-400">
+                    <span>Paris :</span>
+                    <span className="font-medium text-slate-600">
+                      {formatTime(activeCourse.bettingOpensAt)}
+                    </span>
+                    <span>→</span>
+                    <span className="font-medium text-slate-600">
+                      {formatTime(activeCourse.cutoffTime)}
+                    </span>
+                    <span className="text-slate-300">GMT</span>
+                  </div>
+                )}
+
                 {/* Quick actions for this course */}
-                <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
                   {activeCourse.status !== "SETTLED" && (
                     <Link
                       href={`/operateur/resultats/${encryptId(activeCourse.id)}`}
@@ -227,6 +244,13 @@ export default async function DashboardPage({
                       Voir résultats
                     </Link>
                   )}
+                  <div className="ml-auto">
+                    <CourseActions
+                      courseId={activeCourse.id}
+                      courseToken={encryptId(activeCourse.id)}
+                      courseStatus={activeCourse.status}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -316,11 +340,13 @@ export default async function DashboardPage({
           </div>
         )}
 
-        {/* ── Betting toggle ────────────────────────────────────── */}
-        <BettingToggle
-          closed={siteSettings.bettingClosed}
-          currentMessage={siteSettings.closedMessage}
-        />
+        {/* ── Global betting pause banner (only if active) ─────── */}
+        {siteSettings.bettingClosed && (
+          <BettingToggle
+            closed={siteSettings.bettingClosed}
+            currentMessage={siteSettings.closedMessage}
+          />
+        )}
 
         {/* ── Quick actions (secondary, not primary) ─────────────── */}
         <div className="flex gap-2 flex-wrap">

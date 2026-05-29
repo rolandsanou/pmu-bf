@@ -108,7 +108,9 @@ export default async function JouerPage() {
     subtitle: `${DISCIPLINE_LABEL[c.discipline]} · ${formatDistance(
       c.distanceMeters
     )} · ${c.runnerCount} partants`,
-    startLabel: formatTime(c.startTime),
+    startLabel: c.bettingOpensAt
+      ? `${formatTime(c.bettingOpensAt)} → ${formatTime(c.cutoffTime)} GMT`
+      : `${formatTime(c.cutoffTime)} GMT`,
     cutoffISO: c.cutoffTime.toISOString(),
     bettingOpensISO: c.bettingOpensAt?.toISOString() ?? null,
     runnerCount: c.runnerCount,
